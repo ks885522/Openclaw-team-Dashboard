@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
+import { createAutoIssue, getSuggestedAssignment, type AutoIssueParams } from './services/api/autoIssue'
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
 
@@ -391,9 +392,35 @@ function App() {
       <VisualAnnotation 
         isOpen={showVisualAnnotation}
         onClose={() => setShowVisualAnnotation(false)}
-        onSubmit={(imageDataUrl, description) => {
+        onSubmit={async (imageDataUrl, description) => {
           console.log('Screenshot submitted:', { imageDataUrl, description })
-          showToast('info', '已建立截圖，準備建立 Issue')
+          
+          // 根據描述自動判斷類型並獲取建議的標籤和指派人
+          const issueType = description.toLowerCase().includes('ui') || 
+                           description.toLowerCase().includes('design') ? 'ui' : 'feature'
+          const suggestion = getSuggestedAssignment(issueType)
+          
+          // 自動建立 GitHub Issue
+          const params: AutoIssueParams = {
+            title: `[Issue] ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`,
+            description: description,
+            imageDataUrl,
+            labels: suggestion.labels,
+            assignee: suggestion.assignee,
+          }
+          
+          try {
+            const result = await createAutoIssue(params)
+            if (result.success) {
+              showToast('success', `已建立 Issue #${result.issueNumber}`)
+            } else {
+              showToast('error', `建立失敗: ${result.error}`)
+            }
+          } catch (err) {
+            showToast('error', '建立 Issue 失敗')
+            console.error(err)
+          }
+          
           setShowVisualAnnotation(false)
         }}
       />
