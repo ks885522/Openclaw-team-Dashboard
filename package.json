@@ -4,6 +4,15 @@
   "description": "七 Agent 團隊即時狀態監控 Dashboard",
   "scripts": {
     "dev": "vite",
+    "dev:server": "bash scripts/dev-server.sh",
+    "dev:3001": "bash scripts/dev-server.sh 3001",
+    "dev:3002": "bash scripts/dev-server.sh 3002",
+    "kill:server": "bash scripts/kill-server.sh",
+    "kill:3001": "bash scripts/kill-server.sh 3001",
+    "kill:3002": "bash scripts/kill-server.sh 3002",
+    "clean": "bash scripts/kill-server.sh",
+    "test:art": "bash scripts/dev-server.sh 3002",
+    "test:func": "bash scripts/dev-server.sh 3001",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
