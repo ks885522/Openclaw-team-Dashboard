@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>截圖與標記工具 - Visual Annotation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Primary Colors */
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      
+      /* Background Colors */
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --bg-overlay: rgba(10, 14, 23, 0.85);
+      --border: #2A3444;
+      
+      /* Text Colors */
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      
+      /* Tool Colors */
+      --tool-red: #EF4444;
+      --tool-yellow: #F59E0B;
+      --tool-green: #10B981;
+      --tool-blue: #3B82F6;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    
+    /* Header */
+    .header {
+      height: 56px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    /* Annotation Toolbar */
+    .annotation-toolbar {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 16px;
+      display: flex;
+      gap: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 200;
+    }
+    
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
+    }
+    
+    .tool-btn:hover {
+      background: var(--primary);
+      color: var(--text-primary);
+      border-color: var(--primary);
+    }
+    
+    .tool-btn.active {
+      background: var(--primary);
+      color: var(--text-primary);
+      border-color: var(--primary);
+    }
+    
+    .tool-divider {
+      width: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
+    
+    .color-picker {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 0 8px;
+    }
+    
+    .color-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+    
+    .color-dot:hover, .color-dot.active {
+      transform: scale(1.2);
+      border-color: var(--text-primary);
+    }
+    
+    .color-dot.red { background: var(--tool-red); }
+    .color-dot.yellow { background: var(--tool-yellow); }
+    .color-dot.green { background: var(--tool-green); }
+    .color-dot.blue { background: var(--tool-blue); }
+    
+    /* Screenshot Canvas Area */
+    .canvas-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 120px 24px 24px;
+      min-height: calc(100vh - 56px);
+    }
+    
+    .screenshot-canvas {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+      max-width: 100%;
+    }
+    
+    .screenshot-image {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    
+    /* Annotation Overlay */
+    .annotation-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    /* Sample Annotations */
+    .annotation-circle {
+      position: absolute;
+      border: 3px solid var(--tool-red);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    
+    .annotation-arrow {
+      position: absolute;
+      pointer-events: none;
+    }
+    
+    .annotation-text {
+      position: absolute;
+      background: var(--tool-yellow);
+      color: #000;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+    
+    /* Bottom Action Bar */
+    .action-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 200;
+    }
+    
+    .action-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .action-btn.primary {
+      background: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    .action-btn.primary:hover {
+      background: #0052CC;
+    }
+    
+    .action-btn.secondary {
+      background: var(--bg-light);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    
+    .action-btn.secondary:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+    
+    /* Description Input */
+    .description-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 24px;
+      max-width: 600px;
+    }
+    
+    .description-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .description-input {
+      width: 100%;
+      min-height: 80px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      resize: vertical;
+    }
+    
+    .description-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    
+    .description-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 300;
+    }
+    
+    /* Keyboard Shortcut Hint */
+    .shortcut-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 8px;
+    }
+    
+    .key {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    
+    /* Responsive */
+    @media (max-width: 640px) {
+      .annotation-toolbar {
+        width: calc(100% - 32px);
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .action-bar {
+        width: calc(100% - 32px);
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">📸</div>
+      <h1 class="header-title">截圖與標記工具</h1>
+    </div>
+    <div class="header-actions">
+      <span class="shortcut-hint">
+        <span class="key">Ctrl</span>+<span class="key">Shift</span>+<span class="key">S</span>
+      </span>
+    </div>
+  </header>
+  
+  <!-- Annotation Toolbar -->
+  <div class="annotation-toolbar">
+    <button class="tool-btn active" title="選取工具">
+      <span>👆</span>
+    </button>
+    <button class="tool-btn" title="畫圓">
+      <span>⭕</span>
+    </button>
+    <button class="tool-btn" title="畫箭頭">
+      <span>➡️</span>
+    </button>
+    <button class="tool-btn" title="畫框">
+      <span>⬜</span>
+    </button>
+    <button class="tool-btn" title="畫筆">
+      <span>✏️</span>
+    </button>
+    <button class="tool-btn" title="加入文字">
+      <span>T</span>
+    </button>
+    
+    <div class="tool-divider"></div>
+    
+    <div class="color-picker">
+      <div class="color-dot red active" title="紅色"></div>
+      <div class="color-dot yellow" title="黃色"></div>
+      <div class="color-dot green" title="綠色"></div>
+      <div class="color-dot blue" title="藍色"></div>
+    </div>
+    
+    <div class="tool-divider"></div>
+    
+    <button class="tool-btn" title="復原">
+      <span>↩️</span>
+    </button>
+    <button class="tool-btn" title="重做">
+      <span>↪️</span>
+    </button>
+  </div>
+  
+  <!-- Screenshot Canvas -->
+  <div class="canvas-container">
+    <div class="screenshot-canvas" style="position: relative;">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='500' viewBox='0 0 800 500'%3E%3Crect fill='%230A0E17' width='800' height='500'/%3E%3Ctext fill='%238B95A5' font-family='Inter, sans-serif' font-size='24' x='50%25' y='50%25' text-anchor='middle'%3E截圖預覽區域%3C/text%3E%3Ctext fill='%235C6577' font-family='Inter, sans-serif' font-size='14' x='50%25' y='60%25' text-anchor='middle'%3E點擊「截圖」按鈕開始截取畫面%3C/text%3E%3C/svg%3E" 
+           alt="Screenshot" 
+           class="screenshot-image">
+      
+      <!-- Sample Annotations -->
+      <div class="annotation-layer">
+        <div class="annotation-circle" style="left: 180px; top: 120px; width: 80px; height: 80px;"></div>
+        <div class="annotation-text" style="left: 280px; top: 140px;">按鈕間距過窄</div>
+        <div class="annotation-circle" style="left: 450px; top: 280px; width: 100px; height: 60px;"></div>
+        <div class="annotation-text" style="left: 570px; top: 300px; background: var(--tool-green);">正確範例</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Description Panel -->
+  <div style="display: flex; justify-content: center;">
+    <div class="description-panel">
+      <div class="description-title">
+        📝 問題描述
+      </div>
+      <textarea class="description-input" placeholder="描述您發現的問題或建議...">Dashboard 右上角的設定按鈕與重新整理按鈕間距太近，點擊時容易誤觸。</textarea>
+    </div>
+  </div>
+  
+  <!-- Bottom Action Bar -->
+  <div class="action-bar">
+    <button class="action-btn secondary">
+      <span>🔄</span>
+      重新截圖
+    </button>
+    <button class="action-btn secondary">
+      <span>🗑️</span>
+      清除標註
+    </button>
+    <button class="action-btn primary">
+      <span>✅</span>
+      確認並建立 Issue
+    </button>
+  </div>
+  
+  <script>
+    // Interactive demo - just show the UI behavior
+    const toolBtns = document.querySelectorAll('.tool-btn:not(.active)');
+    const colorDots = document.querySelectorAll('.color-dot');
+    
+    toolBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+    
+    colorDots.forEach(dot => {
+      dot.addEventListener('click', function() {
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
