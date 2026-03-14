@@ -2,63 +2,121 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light dark;
+  color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  background-color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 
 .dashboard {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
 }
 
-header h1 {
+.dashboard.loading,
+.dashboard.error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.loading-spinner {
+  font-size: 1.5rem;
+  color: #60a5fa;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 1.25rem;
+}
+
+header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  margin: 0 0 0.5rem 0;
+  background: linear-gradient(90deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  color: #94a3b8;
+  font-size: 1rem;
+  margin: 0;
 }
 
 .agents-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
 }
 
 .agent-card {
-  background: #1a1a1a;
-  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.8);
+  border-radius: 16px;
   padding: 1.5rem;
-  border: 2px solid #333;
-  transition: transform 0.2s;
+  border: 2px solid #334155;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .agent-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
 .agent-card.idle {
-  border-color: #4ade80;
+  border-color: #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.1);
 }
 
 .agent-card.busy {
-  border-color: #facc15;
+  border-color: #eab308;
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.1);
 }
 
 .agent-card.offline {
   border-color: #ef4444;
-  opacity: 0.7;
+  opacity: 0.6;
+}
+
+.agent-avatar {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.agent-info {
+  margin-bottom: 1rem;
 }
 
 .agent-name {
   font-size: 1.25rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.25rem 0;
+  color: #f1f5f9;
+}
+
+.agent-role {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin: 0;
 }
 
 .agent-status {
@@ -66,31 +124,88 @@ header h1 {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
-  color: #aaa;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  width: fit-content;
+}
+
+.agent-card.idle .agent-status {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.agent-card.busy .agent-status {
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+}
+
+.agent-card.offline .agent-status {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
 .status-dot.idle {
-  background: #4ade80;
+  background: #22c55e;
 }
 
 .status-dot.busy {
-  background: #facc15;
+  background: #eab308;
+  animation-duration: 1s;
 }
 
 .status-dot.offline {
   background: #ef4444;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .current-task {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #333;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #334155;
   font-size: 0.875rem;
-  color: #facc15;
+}
+
+.task-label {
+  display: block;
+  color: #64748b;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.last-active {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+  }
+
+  .agents-grid {
+    grid-template-columns: 1fr;
+  }
 }
