@@ -23,6 +23,10 @@ function App() {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('dashboard-theme')
+    return (saved as 'dark' | 'light') || 'dark'
+  })
   const loaderRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -46,6 +50,16 @@ function App() {
       stopPolling()
     }
   }, [])
+
+  // 主題切換
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('dashboard-theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  }
 
   // 模擬項目數據（實際應該從 API 獲取）
   useEffect(() => {
@@ -218,6 +232,13 @@ function App() {
           <h1 className="header-title">OpenClaw Team Dashboard</h1>
         </div>
         <div className="header-actions">
+          <button 
+            className="icon-btn" 
+            title={theme === 'dark' ? '切換到淺色主題' : '切換到深色主題'}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <button 
             className="icon-btn" 
             title="重新整理"

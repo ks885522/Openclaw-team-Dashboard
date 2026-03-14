@@ -30,6 +30,21 @@
   background-color: var(--bg-dark);
 }
 
+/* Light Theme */
+[data-theme="light"] {
+  --bg-dark: #F5F7FA;
+  --bg-card: #FFFFFF;
+  --bg-light: #E8ECF1;
+  --border: #D1D9E6;
+  
+  --text-primary: #1A1D21;
+  --text-secondary: #5C6577;
+  --text-muted: #8B95A5;
+  
+  color-scheme: light;
+  color: rgba(26, 29, 33, 0.87);
+}
+
 * {
   margin: 0;
   padding: 0;
