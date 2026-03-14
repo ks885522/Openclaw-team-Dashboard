@@ -10,6 +10,34 @@ const REPO_OWNER = 'ks885522';
 const REPO_NAME = 'Openclaw-team-Dashboard';
 
 /**
+ * Ensure log directory exists
+ */
+function ensureLogDir() {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Write a log entry to the JSON log file (supports real-time)
+ */
+function writeAgentLog(logEntry) {
+  ensureLogDir();
+  
+  const logLine = JSON.stringify(logEntry) + '\n';
+  
+  fs.appendFile(AGENT_LOG_FILE, logLine, (err) => {
+    if (err) {
+      console.error('[AgentLogger] Failed to write to log file:', err);
+      return false;
+    }
+    return true;
+  });
+  
+  return true;
+}
+
+/**
  * Read agent activity logs from file
  */
 function readAgentLogs(agentId = null) {
@@ -235,9 +263,92 @@ function calculateLogMetrics() {
   return metrics;
 }
 
+/**
+ * Get all 7 agents with their status
+ * Uses sessions data to determine agent status (idle/busy/offline)
+ */
+function getAgentStatus() {
+  return new Promise((resolve, reject) => {
+    exec('npx openclaw sessions --all-agents --json', (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      
+      const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        reject(new Error('Failed to parse sessions JSON'));
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        const sessions = result.sessions || [];
+        
+        // Define the 7 agents
+        const agents = [
+          { id: 'task-tracking', name: '指揮台', emoji: '📋' },
+          { id: 'requirements', name: '透析器', emoji: '🔍' },
+          { id: 'art-design', name: '調色盤', emoji: '🎨' },
+          { id: 'engineering', name: '編譯器', emoji: '⚙️' },
+          { id: 'art-review', name: '鑑賞家', emoji: '🖼️' },
+          { id: 'feature-review', name: '測試台', emoji: '🧪' },
+          { id: 'devops', name: '部署艦', emoji: '🚀' }
+        ];
+        
+        // Get the most recent session for each agent
+        const agentLatestSession = {};
+        sessions.forEach(session => {
+          const agentId = session.agentId;
+          if (!agentLatestSession[agentId] || session.updatedAt > agentLatestSession[agentId].updatedAt) {
+            agentLatestSession[agentId] = session;
+          }
+        });
+        
+        // Determine status for each agent
+        const now = Date.now();
+        const ACTIVE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+        
+        const agentStatusList = agents.map(agent => {
+          const latestSession = agentLatestSession[agent.id];
+          
+          let status = 'offline';
+          let lastActive = null;
+          
+          if (latestSession) {
+            const ageMs = latestSession.ageMs || 0;
+            const timeSinceUpdate = now - (latestSession.updatedAt || now);
+            
+            if (timeSinceUpdate < ACTIVE_THRESHOLD_MS) {
+              status = 'busy';
+            } else {
+              status = 'idle';
+            }
+            lastActive = latestSession.updatedAt ? new Date(latestSession.updatedAt).toISOString() : null;
+          }
+          
+          return {
+            id: agent.id,
+            name: agent.name,
+            emoji: agent.emoji,
+            status: status,
+            lastActive: lastActive,
+            sessionId: latestSession?.sessionId || null,
+            model: latestSession?.model || null
+          };
+        });
+        
+        resolve(agentStatusList);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -247,7 +358,47 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url.startsWith('/api/agent-logs')) {
-    // Get query param for agent_id filter
+    // POST: Create a new log entry (real-time logging)
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const logEntry = JSON.parse(body);
+          
+          // Validate required fields
+          if (!logEntry.agent_id || !logEntry.action || !logEntry.outcome) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required fields: agent_id, action, outcome' }));
+            return;
+          }
+          
+          // Add timestamp if not provided
+          if (!logEntry.timestamp) {
+            logEntry.timestamp = new Date().toISOString();
+          }
+          
+          // Write to file
+          const success = writeAgentLog(logEntry);
+          
+          if (success) {
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, log: logEntry }));
+          } else {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write log' }));
+          }
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON: ' + err.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET: Read logs
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const agentId = url.searchParams.get('agent_id');
     
@@ -353,6 +504,21 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Failed to parse OpenClaw output', details: e.message }));
       }
     });
+  } else if (req.url.startsWith('/api/agent-status')) {
+    // Agent status endpoint
+    getAgentStatus()
+      .then(agentStatusList => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          agents: agentStatusList,
+          timestamp: new Date().toISOString()
+        }));
+      })
+      .catch(err => {
+        console.error('Error getting agent status:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
   } else {
     res.writeHead(404);
     res.end('Not Found');
