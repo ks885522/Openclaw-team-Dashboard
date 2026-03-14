@@ -47,7 +47,7 @@ start() {
         npm run build
         
         log_info "Starting PM2 process..."
-        pm2 start npm --name $APP_NAME -- start
+        pm2 start npx --name $APP_NAME -- vite preview --port $PORT
         
         # Save PM2 process list for restart on boot
         pm2 startup
