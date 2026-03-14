@@ -215,8 +215,19 @@ function calculateCostMetrics() {
 /**
  * Calculate performance metrics from logs
  */
-function calculateLogMetrics() {
-  const logs = readAgentLogs();
+function calculateLogMetrics(options = {}) {
+  const { startTime, endTime } = options;
+  let logs = readAgentLogs();
+  
+  // Filter by time range if provided
+  if (startTime || endTime) {
+    logs = logs.filter(log => {
+      const logTime = log.timestamp ? new Date(log.timestamp).getTime() : 0;
+      if (startTime && logTime < startTime) return false;
+      if (endTime && logTime > endTime) return false;
+      return true;
+    });
+  }
   
   const metrics = {
     totalTasks: 0,
@@ -411,9 +422,24 @@ const server = http.createServer((req, res) => {
       // Get time range from query params
       const url = new URL(req.url, `http://localhost:${PORT}`);
       const days = parseInt(url.searchParams.get('days') || '30', 10);
+      const startTimeParam = url.searchParams.get('start_time');
+      const endTimeParam = url.searchParams.get('end_time');
       
-      // Calculate metrics
-      const logMetrics = calculateLogMetrics();
+      // Calculate time range
+      let startTime, endTime;
+      if (startTimeParam) {
+        startTime = new Date(startTimeParam).getTime();
+      } else {
+        const now = new Date();
+        endTime = now.getTime();
+        startTime = now.getTime() - (days * 24 * 60 * 60 * 1000);
+      }
+      if (endTimeParam) {
+        endTime = new Date(endTimeParam).getTime();
+      }
+      
+      // Calculate metrics with time range filter
+      const logMetrics = calculateLogMetrics({ startTime, endTime });
       const agentScores = calculateAgentScores();
       const costMetrics = calculateCostMetrics();
       
