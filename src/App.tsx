@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
+import { VisualAnnotation } from './components/VisualAnnotation'
 
 // 項目類型
 interface Project {
@@ -30,6 +31,7 @@ function App() {
   })
   const { toasts, removeToast } = useToast()
   const loaderRef = useRef<HTMLDivElement>(null)
+  const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
 
   useEffect(() => {
     // 初始載入
@@ -269,6 +271,13 @@ function App() {
           >
             🔄
           </button>
+          <button 
+            className="icon-btn" 
+            title="截圖與標記"
+            onClick={() => setShowVisualAnnotation(true)}
+          >
+            📸
+          </button>
           <button className="icon-btn" title="設定">⚙️</button>
         </div>
       </header>
@@ -377,6 +386,17 @@ function App() {
           )}
         </section>
       </main>
+      
+      {/* Visual Annotation Tool */}
+      <VisualAnnotation 
+        isOpen={showVisualAnnotation}
+        onClose={() => setShowVisualAnnotation(false)}
+        onSubmit={(imageDataUrl, description) => {
+          console.log('Screenshot submitted:', { imageDataUrl, description })
+          showToast('info', '已建立截圖，準備建立 Issue')
+          setShowVisualAnnotation(false)
+        }}
+      />
     </div>
   )
 }
