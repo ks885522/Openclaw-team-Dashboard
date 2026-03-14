@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Primary Colors */
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      
+      /* Background Colors */
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --border: #2A3444;
+      
+      /* Text Colors */
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      
+      /* Status Colors */
+      --status-idle: #10B981;
+      --status-busy: #F59E0B;
+      --status-offline: #EF4444;
+      --status-progress: #3B82F6;
+      --status-completed: #8B5CF6;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    
+    /* Header */
+    .header {
+      height: 64px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--text-primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .icon-btn:hover {
+      background: var(--primary);
+      color: var(--text-primary);
+      border-color: var(--primary);
+    }
+    
+    /* Main Content */
+    .main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    
+    /* Agent Status Section */
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    
+    .agent-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .agent-card:hover {
+      transform: scale(1.02);
+      border-color: var(--primary);
+      box-shadow: 0 8px 24px rgba(0, 102, 255, 0.15);
+    }
+    
+    .agent-card.idle {
+      border-color: var(--status-idle);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+    
+    .agent-card.busy {
+      border-color: var(--status-busy);
+    }
+    
+    .agent-card.offline {
+      opacity: 0.6;
+    }
+    
+    .agent-emoji {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    
+    .agent-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .agent-role {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    
+    .agent-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .status-dot.idle { background: var(--status-idle); }
+    .status-dot.busy { background: var(--status-busy); animation: pulse 1.5s infinite; }
+    .status-dot.offline { background: var(--status-offline); }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .agent-task {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Project Sections */
+    .project-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s ease;
+    }
+    
+    .project-card:hover {
+      border-color: var(--primary);
+    }
+    
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .project-title {
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .project-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .progress-bar {
+      height: 6px;
+      background: var(--bg-light);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    
+    .progress-fill.completed {
+      background: var(--status-completed);
+    }
+    
+    /* Responsive */
+    @media (max-width: 640px) {
+      .header-title {
+        font-size: 16px;
+      }
+      
+      .agent-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .main {
+        padding: 16px;
+      }
+    }
+    
+    @media (min-width: 641px) and (max-width: 1024px) {
+      .agent-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    
+    @media (min-width: 1025px) {
+      .agent-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">⚡</div>
+      <h1 class="header-title">OpenClaw Team Dashboard</h1>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" title="重新整理">🔄</button>
+      <button class="icon-btn" title="設定">⚙️</button>
+    </div>
+  </header>
+  
+  <main class="main">
+    <!-- Agent Status Section -->
+    <section class="section">
+      <h2 class="section-title">Agent 團隊狀態</h2>
+      <div class="agent-grid">
+        <div class="agent-card idle">
+          <div class="agent-emoji">🎨</div>
+          <div class="agent-name">調色盤</div>
+          <div class="agent-role">Art Design</div>
+          <div class="agent-status">
+            <span class="status-dot idle"></span>
+            <span style="color: var(--status-idle)">閒置</span>
+          </div>
+          <div class="agent-task">等待新任務...</div>
+        </div>
+        
+        <div class="agent-card busy">
+          <div class="agent-emoji">⚙️</div>
+          <div class="agent-name">編譯器</div>
+          <div class="agent-role">Engineering</div>
+          <div class="agent-status">
+            <span class="status-dot busy"></span>
+            <span style="color: var(--status-busy)">忙碌中</span>
+          </div>
+          <div class="agent-task">實作 Dashboard 前端元件...</div>
+        </div>
+        
+        <div class="agent-card idle">
+          <div class="agent-emoji">🔍</div>
+          <div class="agent-name">透析器</div>
+          <div class="agent-role">Requirements</div>
+          <div class="agent-status">
+            <span class="status-dot idle"></span>
+            <span style="color: var(--status-idle)">閒置</span>
+          </div>
+          <div class="agent-task">等待新任務...</div>
+        </div>
+        
+        <div class="agent-card busy">
+          <div class="agent-emoji">🖼️</div>
+          <div class="agent-name">鑑識家</div>
+          <div class="agent-role">Art Review</div>
+          <div class="agent-status">
+            <span class="status-dot busy"></span>
+            <span style="color: var(--status-busy)">審查中</span>
+          </div>
+          <div class="agent-task">審查 UI 設計稿...</div>
+        </div>
+        
+        <div class="agent-card idle">
+          <div class="agent-emoji">🧪</div>
+          <div class="agent-name">測試台</div>
+          <div class="agent-role">Feature Review</div>
+          <div class="agent-status">
+            <span class="status-dot idle"></span>
+            <span style="color: var(--status-idle)">閒置</span>
+          </div>
+          <div class="agent-task">等待新任務...</div>
+        </div>
+        
+        <div class="agent-card offline">
+          <div class="agent-emoji">📋</div>
+          <div class="agent-name">指揮台</div>
+          <div class="agent-role">Task Tracking</div>
+          <div class="agent-status">
+            <span class="status-dot offline"></span>
+            <span style="color: var(--status-offline)">離線</span>
+          </div>
+          <div class="agent-task">--</div>
+        </div>
+        
+        <div class="agent-card idle">
+          <div class="agent-emoji">🚀</div>
+          <div class="agent-name">部署艦</div>
+          <div class="agent-role">DevOps</div>
+          <div class="agent-status">
+            <span class="status-dot idle"></span>
+            <span style="color: var(--status-idle)">閒置</span>
+          </div>
+          <div class="agent-task">等待新任務...</div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- In Progress Section -->
+    <section class="section">
+      <h2 class="section-title">進行中項目</h2>
+      <div class="project-card">
+        <div class="project-header">
+          <div class="project-title">
+            <span>🔄</span>
+            前端頁面開發 - Dashboard 介面
+          </div>
+          <div class="project-meta">⚙️ 編譯器</div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 65%"></div>
+        </div>
+      </div>
+      
+      <div class="project-card">
+        <div class="project-header">
+          <div class="project-title">
+            <span>🔄</span>
+            Agent 狀態 API 串接
+          </div>
+          <div class="project-meta">🔍 透析器</div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 40%"></div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Completed Section -->
+    <section class="section">
+      <h2 class="section-title">已完成項目</h2>
+      <div class="project-card">
+        <div class="project-header">
+          <div class="project-title">
+            <span>✅</span>
+            專案初始化與環境建置
+          </div>
+          <div class="project-meta">🚀 部署艦 · 2小時前</div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill completed" style="width: 100%"></div>
+        </div>
+      </div>
+      
+      <div class="project-card">
+        <div class="project-header">
+          <div class="project-title">
+            <span>✅</span>
+            前端技術評估與框架選擇
+          </div>
+          <div class="project-meta">⚙️ 編譯器 · 3小時前</div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill completed" style="width: 100%"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <script>
+    // Simulate real-time updates
+    setInterval(() => {
+      console.log('Refreshing agent statuses...');
+    }, 30000);
+  </script>
+</body>
+</html>
