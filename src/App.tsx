@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
+import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
 
 // 項目類型
 interface Project {
@@ -15,8 +16,14 @@ interface Project {
 function App() {
   const [agents, setAgents] = useState<AgentStatus[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [completedLoading, setCompletedLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const loaderRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // 初始載入
@@ -90,6 +97,80 @@ function App() {
     setProjects(mockProjects)
   }, [])
 
+  // 載入已完成任務（從 API 獲取）
+  useEffect(() => {
+    const loadCompletedTasks = async () => {
+      setCompletedLoading(true)
+      try {
+        const tasks = await fetchCompletedTasks({
+          sortBy: 'closed_at',
+          sortOrder: sortOrder,
+          perPage: 10,
+          page: 1
+        })
+        setCompletedTasks(tasks)
+        setHasMore(tasks.length >= 10)
+      } catch (err) {
+        console.error('Failed to load completed tasks:', err)
+      } finally {
+        setCompletedLoading(false)
+      }
+    }
+    loadCompletedTasks()
+  }, [sortOrder])
+
+  // 無限滾動載入更多
+  const loadMoreTasks = useCallback(async () => {
+    if (completedLoading || !hasMore) return
+    
+    setCompletedLoading(true)
+    try {
+      const nextPage = currentPage + 1
+      const newTasks = await fetchCompletedTasks({
+        sortBy: 'closed_at',
+        sortOrder: sortOrder,
+        perPage: 10,
+        page: nextPage
+      })
+      
+      if (newTasks.length > 0) {
+        setCompletedTasks(prev => [...prev, ...newTasks])
+        setCurrentPage(nextPage)
+        setHasMore(newTasks.length >= 10)
+      } else {
+        setHasMore(false)
+      }
+    } catch (err) {
+      console.error('Failed to load more tasks:', err)
+    } finally {
+      setCompletedLoading(false)
+    }
+  }, [completedLoading, hasMore, currentPage, sortOrder])
+
+  // 監聽滾動以觸發載入更多
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !completedLoading) {
+          loadMoreTasks()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [loadMoreTasks, hasMore, completedLoading])
+
+  // 切換排序順序
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')
+    setCurrentPage(1)
+  }
+
   const getStatusLabel = (status: AgentStatus['status']) => {
     switch (status) {
       case 'idle': return '閒置'
@@ -127,7 +208,6 @@ function App() {
   }
 
   const inProgressProjects = projects.filter(p => p.status === 'in_progress')
-  const completedProjects = projects.filter(p => p.status === 'completed')
 
   return (
     <div className="dashboard">
@@ -207,27 +287,51 @@ function App() {
 
         {/* Completed Section */}
         <section className="section">
-          <h2 className="section-title">已完成項目</h2>
-          {completedProjects.map(project => (
-            <div key={project.id} className="project-card">
-              <div className="project-header">
-                <div className="project-title">
-                  <span>✅</span>
-                  {project.title}
+          <div className="section-header">
+            <h2 className="section-title">已完成項目</h2>
+            <button 
+              className="sort-btn" 
+              onClick={toggleSortOrder}
+              title={sortOrder === 'desc' ? '最新優先' : '最舊優先'}
+            >
+              {sortOrder === 'desc' ? '📅 最新優先' : '📅 最舊優先'}
+            </button>
+          </div>
+          {completedTasks.length === 0 && !completedLoading ? (
+            <div className="empty-state">暫無已完成項目</div>
+          ) : (
+            <>
+              {completedTasks.map(task => (
+                <div key={task.id} className="project-card">
+                  <div className="project-header">
+                    <div className="project-title">
+                      <span>✅</span>
+                      <a href={task.url} target="_blank" rel="noopener noreferrer">
+                        {task.title}
+                      </a>
+                    </div>
+                    <div className="project-meta">
+                      {task.agentEmoji} {task.agentName}
+                      {task.completedAt && ` · ${formatTimeAgo(task.completedAt)}`}
+                    </div>
+                  </div>
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill completed" 
+                      style={{ width: '100%' }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="project-meta">
-                  {project.agentEmoji} {project.agentName}
-                  {project.completedAt && ` · ${formatTimeAgo(project.completedAt)}`}
-                </div>
+              ))}
+              {/* Infinite scroll loader */}
+              <div ref={loaderRef} className="load-more">
+                {completedLoading && <div className="loading-spinner">載入中...</div>}
+                {!hasMore && completedTasks.length > 0 && (
+                  <div className="end-message">已載入全部</div>
+                )}
               </div>
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill completed" 
-                  style={{ width: '100%' }}
-                ></div>
-              </div>
-            </div>
-          ))}
+            </>
+          )}
         </section>
       </main>
     </div>
