@@ -41,11 +41,11 @@ pkill -f "vite" 2>/dev/null || true
 sleep 1
 
 # Export the port for Vite
-export PORT=$port
+export PORT=$PORT
 
 # Start the server
 echo -e "${GREEN}[DevOps]${NC} Starting on port $PORT with npm run $NPM_SCRIPT..."
 echo -e "${GREEN}[DevOps]${NC} Server will be available at http://localhost:$PORT"
 
 # Use vite's --host flag to ensure accessibility
-npm run $NPM_SCRIPT -- --host --port $PORT
+npx vite --host --port $PORT
