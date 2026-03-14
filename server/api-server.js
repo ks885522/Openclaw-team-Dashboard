@@ -102,6 +102,89 @@ function calculateAgentScores() {
 }
 
 /**
+ * Calculate cost and resource metrics from logs
+ * Estimates token usage and API call costs based on agent activity
+ */
+function calculateCostMetrics() {
+  const logs = readAgentLogs();
+  
+  // Cost constants (approximate pricing)
+  const COST_PER_1K_INPUT_TOKENS = 0.15;  // USD
+  const COST_PER_1K_OUTPUT_TOKENS = 0.60;  // USD
+  const AVG_INPUT_TOKENS_PER_TASK = 3000;
+  const AVG_OUTPUT_TOKENS_PER_TASK = 1500;
+  
+  const metrics = {
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalTokens: 0,
+    estimatedCostUSD: 0,
+    apiCalls: 0,
+    avgTaskDurationMs: 0,
+    byTaskType: {
+      'requirements': { count: 0, tokens: 0, cost: 0 },
+      'engineering': { count: 0, tokens: 0, cost: 0 },
+      'art-design': { count: 0, tokens: 0, cost: 0 },
+      'task-tracking': { count: 0, tokens: 0, cost: 0 },
+      'art-review': { count: 0, tokens: 0, cost: 0 },
+      'feature-review': { count: 0, tokens: 0, cost: 0 },
+      'devops': { count: 0, tokens: 0, cost: 0 }
+    }
+  };
+  
+  if (logs.length === 0) {
+    return metrics;
+  }
+  
+  let totalDuration = 0;
+  let durationCount = 0;
+  
+  logs.forEach(log => {
+    // Estimate tokens based on task complexity
+    let inputTokens = AVG_INPUT_TOKENS_PER_TASK;
+    let outputTokens = AVG_OUTPUT_TOKENS_PER_TASK;
+    
+    // Adjust based on task type
+    if (log.task_type === 'requirements' || log.task_type === 'engineering') {
+      inputTokens = 5000;
+      outputTokens = 3000;
+    } else if (log.task_type === 'art-design') {
+      inputTokens = 2000;
+      outputTokens = 1000;
+    }
+    
+    const taskCost = (inputTokens / 1000 * COST_PER_1K_INPUT_TOKENS) + 
+                     (outputTokens / 1000 * COST_PER_1K_OUTPUT_TOKENS);
+    
+    metrics.totalInputTokens += inputTokens;
+    metrics.totalOutputTokens += outputTokens;
+    metrics.totalTokens += inputTokens + outputTokens;
+    metrics.estimatedCostUSD += taskCost;
+    metrics.apiCalls++;
+    
+    // Track by task type
+    const taskType = log.agent_id || log.task_type || 'engineering';
+    if (!metrics.byTaskType[taskType]) {
+      metrics.byTaskType[taskType] = { count: 0, tokens: 0, cost: 0 };
+    }
+    metrics.byTaskType[taskType].count++;
+    metrics.byTaskType[taskType].tokens += inputTokens + outputTokens;
+    metrics.byTaskType[taskType].cost += taskCost;
+    
+    // Track duration
+    if (log.duration_ms) {
+      totalDuration += log.duration_ms;
+      durationCount++;
+    }
+  });
+  
+  metrics.avgTaskDurationMs = durationCount > 0 ? Math.round(totalDuration / durationCount) : 0;
+  metrics.estimatedCostUSD = Math.round(metrics.estimatedCostUSD * 100) / 100;
+  
+  return metrics;
+}
+
+/**
  * Calculate performance metrics from logs
  */
 function calculateLogMetrics() {
@@ -181,6 +264,7 @@ const server = http.createServer((req, res) => {
       // Calculate metrics
       const logMetrics = calculateLogMetrics();
       const agentScores = calculateAgentScores();
+      const costMetrics = calculateCostMetrics();
       
       // Get PR stats
       let prStats = { total: 0, merged: 0, closed: 0 };
@@ -219,6 +303,15 @@ const server = http.createServer((req, res) => {
           rate: logMetrics.totalTasks > 0 
             ? ((logMetrics.successTasks / logMetrics.totalTasks) * 100).toFixed(1) + '%' 
             : '0%'
+        },
+        cost: {
+          totalTokens: costMetrics.totalTokens,
+          totalInputTokens: costMetrics.totalInputTokens,
+          totalOutputTokens: costMetrics.totalOutputTokens,
+          estimatedCostUSD: costMetrics.estimatedCostUSD,
+          apiCalls: costMetrics.apiCalls,
+          avgTaskDurationMs: costMetrics.avgTaskDurationMs,
+          byTaskType: costMetrics.byTaskType
         },
         byAgent: logMetrics.byAgent,
         timestamp: new Date().toISOString()

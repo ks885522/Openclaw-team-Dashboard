@@ -1,6 +1,20 @@
 // Performance Metrics API Service
 // 串接後端 API 獲取 Performance Data
 
+export interface CostMetrics {
+  totalTokens: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  estimatedCostUSD: number
+  apiCalls: number
+  avgTaskDurationMs: number
+  byTaskType: Record<string, {
+    count: number
+    tokens: number
+    cost: number
+  }>
+}
+
 export interface PerformanceMetrics {
   summary: {
     totalPRs: number
@@ -18,6 +32,7 @@ export interface PerformanceMetrics {
     successTasks: number
     rate: string
   }
+  cost: CostMetrics
   timestamp: string
   error?: string
 }
