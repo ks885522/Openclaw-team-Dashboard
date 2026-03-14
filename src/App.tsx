@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
+import { useToast, ToastContainer, showToast } from './hooks/useToast'
 
 // 項目類型
 interface Project {
@@ -27,6 +28,7 @@ function App() {
     const saved = localStorage.getItem('dashboard-theme')
     return (saved as 'dark' | 'light') || 'dark'
   })
+  const { toasts, removeToast } = useToast()
   const loaderRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,11 +41,30 @@ function App() {
       .catch(err => {
         setError(err.message)
         setLoading(false)
+        showToast('error', '載入 Agent 狀態失敗')
       })
 
     // 啟動輪詢更新（每 30 秒刷新一次）
     const stopPolling = createStatusPoller((updatedAgents) => {
-      setAgents(updatedAgents)
+      // 檢測狀態變化並顯示通知
+      setAgents(prevAgents => {
+        const prevMap = new Map(prevAgents.map(a => [a.id, a.status]))
+        updatedAgents.forEach(agent => {
+          const prevStatus = prevMap.get(agent.id)
+          if (prevStatus && prevStatus !== agent.status) {
+            const statusMessages: Record<string, Record<string, string>> = {
+              idle: { busy: '已閒置', offline: '已離線' },
+              busy: { idle: '現在閒置', offline: '已離線' },
+              offline: { idle: '上線了', busy: '上線了' }
+            }
+            const msg = statusMessages[prevStatus]?.[agent.status]
+            if (msg) {
+              showToast('info', `${agent.name} ${msg}`)
+            }
+          }
+        })
+        return updatedAgents
+      })
     }, 30000)
 
     return () => {
@@ -225,6 +246,7 @@ function App() {
 
   return (
     <div className="dashboard">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       {/* Header */}
       <header className="header">
         <div className="header-left">
