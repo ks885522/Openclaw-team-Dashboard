@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
 import { createAutoIssue, getSuggestedAssignment, type AutoIssueParams } from './services/api/autoIssue'
+import { fetchPerformanceMetrics, type PerformanceMetrics } from './services/api/performanceMetrics'
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
 
@@ -33,6 +34,9 @@ function App() {
   const { toasts, removeToast } = useToast()
   const loaderRef = useRef<HTMLDivElement>(null)
   const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
+  const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
+  const [costLoading, setCostLoading] = useState(true)
+  const [costDays, setCostDays] = useState(30)
 
   useEffect(() => {
     // 初始載入
@@ -74,6 +78,22 @@ function App() {
       stopPolling()
     }
   }, [])
+
+  // 載入成本監控數據
+  useEffect(() => {
+    const loadCostMetrics = async () => {
+      setCostLoading(true)
+      try {
+        const data = await fetchPerformanceMetrics()
+        setCostMetrics(data.cost || null)
+      } catch (err) {
+        console.error('Failed to load cost metrics:', err)
+      } finally {
+        setCostLoading(false)
+      }
+    }
+    loadCostMetrics()
+  }, [costDays])
 
   // 主題切換
   useEffect(() => {
@@ -384,6 +404,59 @@ function App() {
                 )}
               </div>
             </>
+          )}
+        </section>
+
+        {/* Cost & Resource Monitoring Section */}
+        <section className="section">
+          <div className="section-header">
+            <h2 className="section-title">💰 成本與資源監控</h2>
+            <select 
+              className="filter-select"
+              value={costDays}
+              onChange={(e) => setCostDays(Number(e.target.value))}
+            >
+              <option value={7}>近 7 天</option>
+              <option value={30}>近 30 天</option>
+              <option value={90}>近 90 天</option>
+            </select>
+          </div>
+          
+          {costLoading ? (
+            <div className="loading-spinner">載入中...</div>
+          ) : costMetrics ? (
+            <div className="cost-grid">
+              <div className="cost-card primary">
+                <div className="cost-label">預估總成本 (USD)</div>
+                <div className="cost-value">${costMetrics.estimatedCostUSD.toFixed(2)}</div>
+              </div>
+              <div className="cost-card">
+                <div className="cost-label">總 Token 消耗</div>
+                <div className="cost-value">{costMetrics.totalTokens.toLocaleString()}</div>
+              </div>
+              <div className="cost-card">
+                <div className="cost-label">輸入 Token</div>
+                <div className="cost-value">{costMetrics.totalInputTokens.toLocaleString()}</div>
+              </div>
+              <div className="cost-card">
+                <div className="cost-label">輸出 Token</div>
+                <div className="cost-value">{costMetrics.totalOutputTokens.toLocaleString()}</div>
+              </div>
+              <div className="cost-card">
+                <div className="cost-label">API 呼叫次數</div>
+                <div className="cost-value">{costMetrics.apiCalls}</div>
+              </div>
+              <div className="cost-card">
+                <div className="cost-label">平均任務耗時</div>
+                <div className="cost-value">
+                  {costMetrics.avgTaskDurationMs > 0 
+                    ? `${Math.round(costMetrics.avgTaskDurationMs / 1000)}s` 
+                    : 'N/A'}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state">暫無成本數據</div>
           )}
         </section>
       </main>
