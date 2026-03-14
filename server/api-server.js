@@ -545,6 +545,110 @@ const server = http.createServer((req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       });
+  } else if (req.url.startsWith('/api/create-issue')) {
+    // Auto-create GitHub Issue with screenshot attachment
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          
+          // Validate required fields
+          if (!data.title) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required field: title' }));
+            return;
+          }
+          
+          const title = data.title;
+          const description = data.description || '';
+          const labels = data.labels || ['design-needed', 'art-review-needed'];
+          const imageBase64 = data.image; // Base64 encoded image (optional)
+          
+          // Create temp file for image if provided
+          let imagePath = null;
+          if (imageBase64) {
+            const tempDir = path.join(process.cwd(), 'temp');
+            if (!fs.existsSync(tempDir)) {
+              fs.mkdirSync(tempDir, { recursive: true });
+            }
+            imagePath = path.join(tempDir, `screenshot-${Date.now()}.png`);
+            // Remove data URL prefix if present
+            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(imagePath, Buffer.from(base64Data, 'base64'));
+          }
+          
+          // Build gh issue create command
+          let cmd = `gh issue create --title "${title.replace(/"/g, '\\"')}"`;
+          
+          if (description) {
+            cmd += ` --body "${description.replace(/"/g, '\\"')}"`;
+          }
+          
+          if (labels && labels.length > 0) {
+            cmd += ` --label "${labels.join(',')}"`;
+          }
+          
+          exec(cmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
+            // Clean up temp image file
+            if (imagePath && fs.existsSync(imagePath)) {
+              fs.unlinkSync(imagePath);
+            }
+            
+            if (error) {
+              console.error('Error creating issue:', error.message);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Failed to create issue: ' + error.message }));
+              return;
+            }
+            
+            // Extract issue number from output
+            const issueUrl = stdout.trim();
+            const issueNumberMatch = issueUrl.match(/\/issues\/(\d+)$/);
+            const issueNumber = issueNumberMatch ? issueNumberMatch[1] : null;
+            
+            // If image was provided, add it as a comment
+            if (imageBase64 && imagePath) {
+              // Re-create temp file for upload
+              const uploadPath = path.join(tempDir, `upload-${Date.now()}.png`);
+              const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+              fs.writeFileSync(uploadPath, Buffer.from(base64Data, 'base64'));
+              
+              // Upload image to GitHub and add as comment
+              const uploadCmd = `gh issue comment ${issueNumber} --body "📸 截圖附件: ${issueUrl}"`;
+              exec(uploadCmd, { cwd: process.cwd() }, (err2, stdout2, stderr2) => {
+                // Clean up
+                if (fs.existsSync(uploadPath)) {
+                  fs.unlinkSync(uploadPath);
+                }
+                
+                if (err2) {
+                  console.error('Error adding comment:', err2.message);
+                }
+              });
+            }
+            
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              issue_url: issueUrl,
+              issue_number: issueNumber,
+              labels: labels
+            }));
+          });
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON: ' + err.message }));
+        }
+      });
+      return;
+    } else {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
+    }
   } else {
     res.writeHead(404);
     res.end('Not Found');
