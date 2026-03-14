@@ -570,8 +570,8 @@ const server = http.createServer((req, res) => {
           
           // Create temp file for image if provided
           let imagePath = null;
+          const tempDir = path.join(process.cwd(), 'temp');
           if (imageBase64) {
-            const tempDir = path.join(process.cwd(), 'temp');
             if (!fs.existsSync(tempDir)) {
               fs.mkdirSync(tempDir, { recursive: true });
             }
