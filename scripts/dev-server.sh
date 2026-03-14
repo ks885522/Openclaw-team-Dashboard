@@ -43,6 +43,12 @@ sleep 1
 # Export the port for Vite
 export PORT=$PORT
 
+# Start the API server in the background
+echo -e "${GREEN}[DevOps]${NC} Starting API backend server..."
+node server/api-server.js > server/api.log 2>&1 &
+API_PID=$!
+echo -e "${GREEN}[DevOps]${NC} API Server PID: $API_PID"
+
 # Start the server
 echo -e "${GREEN}[DevOps]${NC} Starting on port $PORT with npm run $NPM_SCRIPT..."
 echo -e "${GREEN}[DevOps]${NC} Server will be available at http://localhost:$PORT"

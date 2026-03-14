@@ -11,6 +11,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/github/, ''),
       },
+      '/api/sessions': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })
