@@ -5,6 +5,7 @@ import { createAutoIssue, getSuggestedAssignment, type AutoIssueParams } from '.
 import { fetchPerformanceMetrics, type PerformanceMetrics } from './services/api/performanceMetrics'
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
+import { PerformanceDashboard } from './components/PerformanceDashboard'
 
 // 項目類型
 interface Project {
@@ -37,6 +38,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -275,6 +277,20 @@ function App() {
         <div className="header-left">
           <div className="logo">⚡</div>
           <h1 className="header-title">OpenClaw Team Dashboard</h1>
+          <nav className="header-nav">
+            <button 
+              className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              📊 監控台
+            </button>
+            <button 
+              className={`nav-tab ${activeTab === 'performance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('performance')}
+            >
+              📈 績效看板
+            </button>
+          </nav>
         </div>
         <div className="header-actions">
           <button 
@@ -304,8 +320,10 @@ function App() {
       </header>
 
       <main className="main">
-        {/* Agent Status Section */}
-        <section className="section">
+        {activeTab === 'dashboard' ? (
+          <>
+            {/* Agent Status Section */}
+            <section className="section">
           <h2 className="section-title">Agent 團隊狀態</h2>
           {loading && agents.length === 0 ? (
             <div className="loading-spinner">載入中...</div>
@@ -459,6 +477,10 @@ function App() {
             <div className="empty-state">暫無成本數據</div>
           )}
         </section>
+        </>
+        ) : (
+          <PerformanceDashboard />
+        )}
       </main>
       
       {/* Visual Annotation Tool */}
