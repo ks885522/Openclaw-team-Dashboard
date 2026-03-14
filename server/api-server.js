@@ -10,6 +10,34 @@ const REPO_OWNER = 'ks885522';
 const REPO_NAME = 'Openclaw-team-Dashboard';
 
 /**
+ * Ensure log directory exists
+ */
+function ensureLogDir() {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Write a log entry to the JSON log file (supports real-time)
+ */
+function writeAgentLog(logEntry) {
+  ensureLogDir();
+  
+  const logLine = JSON.stringify(logEntry) + '\n';
+  
+  fs.appendFile(AGENT_LOG_FILE, logLine, (err) => {
+    if (err) {
+      console.error('[AgentLogger] Failed to write to log file:', err);
+      return false;
+    }
+    return true;
+  });
+  
+  return true;
+}
+
+/**
  * Read agent activity logs from file
  */
 function readAgentLogs(agentId = null) {
@@ -237,7 +265,7 @@ function calculateLogMetrics() {
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -247,7 +275,47 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url.startsWith('/api/agent-logs')) {
-    // Get query param for agent_id filter
+    // POST: Create a new log entry (real-time logging)
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const logEntry = JSON.parse(body);
+          
+          // Validate required fields
+          if (!logEntry.agent_id || !logEntry.action || !logEntry.outcome) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required fields: agent_id, action, outcome' }));
+            return;
+          }
+          
+          // Add timestamp if not provided
+          if (!logEntry.timestamp) {
+            logEntry.timestamp = new Date().toISOString();
+          }
+          
+          // Write to file
+          const success = writeAgentLog(logEntry);
+          
+          if (success) {
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, log: logEntry }));
+          } else {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write log' }));
+          }
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON: ' + err.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET: Read logs
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const agentId = url.searchParams.get('agent_id');
     

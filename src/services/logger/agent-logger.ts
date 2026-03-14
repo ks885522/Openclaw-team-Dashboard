@@ -3,6 +3,7 @@
  * 
  * Centralized logging utility for all Agents to record activity logs.
  * Logs are written to both console and a JSON file for persistence.
+ * Supports real-time logging via API when available.
  * 
  * Usage:
  *   import { agentLogger } from './services/logger/agent-logger';
@@ -12,6 +13,9 @@
  *     task_id: '123',
  *     duration_ms: 5000
  *   });
+ *   
+ *   // Enable real-time logging to API server
+ *   agentLogger.setRealtimeMode(true, 'http://localhost:3001');
  */
 
 import * as fs from 'fs';
@@ -27,7 +31,12 @@ interface LogOptions {
   metadata?: Record<string, unknown>;
   duration_ms?: number;
   error_message?: string;
+  realtime?: boolean; // Override realtime setting for this log
 }
+
+// Configuration for real-time mode
+let realtimeEnabled = false;
+let apiServerUrl = 'http://localhost:3001';
 
 /**
  * Ensure the log directory exists
@@ -54,6 +63,28 @@ function writeToFile(log: AgentActivityLog): void {
 }
 
 /**
+ * Send log to API server for real-time logging
+ */
+async function sendToApi(log: AgentActivityLog): Promise<boolean> {
+  if (!realtimeEnabled) return false;
+  
+  try {
+    const response = await fetch(`${apiServerUrl}/api/agent-logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(log)
+    });
+    
+    return response.ok;
+  } catch (err) {
+    // Silently fail - real-time logging is best-effort
+    return false;
+  }
+}
+
+/**
  * Format log entry for console output
  */
 function formatForConsole(log: AgentActivityLog): string {
@@ -68,6 +99,24 @@ function formatForConsole(log: AgentActivityLog): string {
  * Agent Logger - Centralized logging for all Agents
  */
 export const agentLogger = {
+  /**
+   * Enable or disable real-time logging to API server
+   */
+  setRealtimeMode(enabled: boolean, serverUrl?: string): void {
+    realtimeEnabled = enabled;
+    if (serverUrl) {
+      apiServerUrl = serverUrl;
+    }
+    console.log(`[AgentLogger] Real-time mode: ${enabled ? 'enabled' : 'disabled'}`);
+  },
+
+  /**
+   * Check if real-time mode is enabled
+   */
+  isRealtimeEnabled(): boolean {
+    return realtimeEnabled;
+  },
+
   /**
    * Log an Agent activity
    */
@@ -88,8 +137,14 @@ export const agentLogger = {
     // Write to console
     console.log(`[Agent:${agentId}]`, formatForConsole(logEntry));
     
-    // Write to file
+    // Write to file (always)
     writeToFile(logEntry);
+    
+    // Send to API if realtime is enabled (and not explicitly disabled for this log)
+    const shouldRealtime = options?.realtime !== false && realtimeEnabled;
+    if (shouldRealtime) {
+      sendToApi(logEntry);
+    }
     
     return logEntry;
   },
