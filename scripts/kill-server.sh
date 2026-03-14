@@ -43,6 +43,7 @@ else
     # Also kill any remaining node/vite processes started by current user
     echo -e "${YELLOW}[DevOps]${NC} Cleaning up remaining node/vite processes..."
     pkill -f "vite" 2>/dev/null || true
+    pkill -f "api-server.js" 2>/dev/null || true
 fi
 
 echo -e "${GREEN}[DevOps]${NC} Server cleanup complete!"
