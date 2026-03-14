@@ -77,7 +77,46 @@ npm run kill:server -- 3001
 | 3001 | 功能測試伺服器 |
 | 3002 | 美術測試伺服器 |
 | 3003 | 預留 |
-| 28080 | 常駐穩定版部署環境 |
+| 28080 | 常駐穩定版部署環境（PM2） |
+
+## 常駐穩定版環境
+
+使用 PM2 管理常駐穩定版伺服器，獨立於開發環境。
+
+### 啟動穩定版伺服器
+
+```bash
+# 使用 PM2 啟動（首次）
+./scripts/stable-server.sh start
+
+# 後續直接使用 PM2
+pm2 start npm --name openclaw-dashboard-stable -- start
+pm2 list
+```
+
+### 管理穩定版伺服器
+
+```bash
+# 查看狀態
+pm2 status
+
+# 查看日誌
+pm2 logs openclaw-dashboard-stable
+
+# 重啟
+pm2 restart openclaw-dashboard-stable
+
+# 停止
+pm2 stop openclaw-dashboard-stable
+```
+
+### 開機自動啟動
+
+```bash
+# 設定開機自動啟動
+pm2 startup
+pm2 save
+```
 
 ## 常用命令
 
