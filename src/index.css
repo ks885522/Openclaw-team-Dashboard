@@ -21,6 +21,7 @@
   --status-offline: #EF4444;
   --status-progress: #3B82F6;
   --status-completed: #8B5CF6;
+  --status-blocked: #F59E0B;
 
   /* Heatmap Colors */
   --heatmap-empty: #1E2533;
@@ -1553,4 +1554,394 @@ input:focus, textarea:focus, select:focus {
 .agent-controls .control-btn.inject:hover:not(:disabled) {
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* ============================================
+   Workflow Topology - 工作流依賴拓撲圖
+   ============================================ */
+
+.workflow-topology {
+  padding: 1rem;
+}
+
+/* 過濾器 */
+.topology-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: var(--bg-hover);
+}
+
+.filter-btn.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.filter-btn.busy.active {
+  background: var(--status-busy);
+  border-color: var(--status-busy);
+}
+
+.filter-btn.idle.active {
+  background: var(--status-idle);
+  border-color: var(--status-idle);
+}
+
+.filter-btn.offline.active {
+  background: var(--status-offline);
+  border-color: var(--status-offline);
+}
+
+.filter-btn.blocked.active {
+  background: var(--status-blocked, #f59e0b);
+  border-color: var(--status-blocked, #f59e0b);
+}
+
+/* 圖例 */
+.topology-legend {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-dot.busy {
+  background: var(--status-busy);
+}
+
+.legend-dot.idle {
+  background: var(--status-idle);
+}
+
+.legend-dot.offline {
+  background: var(--status-offline);
+}
+
+.legend-dot.blocked {
+  background: var(--status-blocked, #f59e0b);
+}
+
+/* 拓撲圖 */
+.topology-graph {
+  position: relative;
+  min-height: 300px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.topology-nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.topology-node {
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.topology-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.topology-node.selected {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+.topology-node.busy {
+  border-color: var(--status-busy);
+}
+
+.topology-node.idle {
+  border-color: var(--status-idle);
+}
+
+.topology-node.offline {
+  border-color: var(--status-offline);
+  opacity: 0.6;
+}
+
+.topology-node.blocked {
+  border-color: var(--status-blocked, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.node-emoji {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.node-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+}
+
+.node-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.node-status .status-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.node-status .status-dot.blocked {
+  background: var(--status-blocked, #f59e0b);
+}
+
+.node-role {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.node-task {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-deps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.dep-tag {
+  font-size: 0.625rem;
+  padding: 0.125rem 0.25rem;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+/* SVG 連接線 */
+.topology-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.connection-line {
+  stroke: var(--border-color);
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;
+}
+
+.connection-line.active {
+  stroke: var(--accent-color);
+  stroke-dasharray: none;
+}
+
+.connection-line.blocked {
+  stroke: var(--status-blocked, #f59e0b);
+}
+
+/* 詳細資訊面板 */
+.topology-detail {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.topology-detail h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.detail-emoji {
+  font-size: 2rem;
+}
+
+.detail-name {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.detail-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.detail-status.busy {
+  background: var(--status-busy);
+  color: white;
+}
+
+.detail-status.idle {
+  background: var(--status-idle);
+  color: white;
+}
+
+.detail-status.offline {
+  background: var(--status-offline);
+  color: white;
+}
+
+.detail-status.blocked {
+  background: var(--status-blocked, #f59e0b);
+  color: white;
+}
+
+.detail-role {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.detail-task {
+  background: var(--bg-primary);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.detail-dependencies {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.deps-section h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.deps-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.deps-section li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.status-badge {
+  margin-left: auto;
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+}
+
+.status-badge.busy {
+  background: var(--status-busy);
+  color: white;
+}
+
+.status-badge.idle {
+  background: var(--status-idle);
+  color: white;
+}
+
+.status-badge.offline {
+  background: var(--status-offline);
+  color: white;
+}
+
+.no-deps {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.topology-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+/* 響應式 */
+@media (max-width: 768px) {
+  .topology-nodes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .detail-dependencies {
+    grid-template-columns: 1fr;
+  }
+  
+  .topology-legend {
+    flex-wrap: wrap;
+  }
 }
