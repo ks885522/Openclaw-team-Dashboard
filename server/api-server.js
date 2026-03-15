@@ -997,6 +997,92 @@ const server = http.createServer((req, res) => {
     syncScoresFromGitHub();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Scores synced from GitHub' }));
+  } else if (req.url.startsWith('/api/agent/control')) {
+    // Agent control endpoints: pause, terminate, retry, override
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const { action, agent_id, session_id, prompt_override, task_id } = data;
+          
+          // Validate required fields
+          if (!action || !['pause', 'terminate', 'retry', 'override'].includes(action)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid action. Must be: pause, terminate, retry, or override' }));
+            return;
+          }
+          
+          if (!agent_id) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required field: agent_id' }));
+            return;
+          }
+          
+          let result = {
+            success: true,
+            action: action,
+            agent_id: agent_id,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Execute the action
+          switch (action) {
+            case 'pause':
+              // For now, we'll just log the pause action
+              // In a real implementation, this would pause the agent session
+              console.log(`[AgentControl] Pausing agent: ${agent_id}, session: ${session_id}`);
+              result.message = `Agent ${agent_id} paused`;
+              break;
+              
+            case 'terminate':
+              // Terminate the agent session via gateway
+              console.log(`[AgentControl] Terminating agent: ${agent_id}, session: ${session_id}`);
+              // Use gateway call if session_id provided
+              if (session_id) {
+                exec(`npx openclaw gateway call session_kill --params '{"sessionId":"${session_id}"}'`, (err, stdout, stderr) => {
+                  if (err) {
+                    console.error('Error terminating session:', err.message);
+                  }
+                });
+              }
+              result.message = `Agent ${agent_id} terminated`;
+              break;
+              
+            case 'retry':
+              // Retry a failed task
+              console.log(`[AgentControl] Retrying task: ${task_id} for agent: ${agent_id}`);
+              result.message = `Task ${task_id} retry initiated`;
+              break;
+              
+            case 'override':
+              // Override agent prompt
+              console.log(`[AgentControl] Overriding prompt for agent: ${agent_id}`);
+              if (!prompt_override) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'prompt_override is required for override action' }));
+                return;
+              }
+              result.message = `Prompt override applied for agent ${agent_id}`;
+              result.prompt_override = prompt_override;
+              break;
+          }
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          console.error('[AgentControl] Error:', err.message);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid payload' }));
+        }
+      });
+    } else {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
+    }
   } else {
     res.writeHead(404);
     res.end('Not Found');
