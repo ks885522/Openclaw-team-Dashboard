@@ -1695,8 +1695,8 @@ const MAX_E2E_RESULTS = 100;
 const alertHistory = [];
 const MAX_ALERT_HISTORY = 50;
 
-function checkAlertRules() {
-  return new Promise((resolve) => {
+async function checkAlertRules() {
+  return new Promise(async (resolve) => {
     const triggeredAlerts = [];
     const e2eRule = alertRules.find(r => r.id === 'e2e-fail-3');
     if (e2eRule && e2eRule.enabled) {
@@ -1709,7 +1709,7 @@ function checkAlertRules() {
     }
     const offlineRule = alertRules.find(r => r.id === 'agent-offline-5min');
     if (offlineRule && offlineRule.enabled) {
-      getAgentStatus().then(agentStatusList => {
+      getAgentStatus().then(async (agentStatusList) => {
         const offlineAgents = agentStatusList.filter(a => a.status === 'offline');
         offlineAgents.forEach(agent => {
           if (agent.lastActive) {
@@ -1725,6 +1725,8 @@ function checkAlertRules() {
           alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
           if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
         });
+        // Send webhook notifications for triggered alerts
+        await sendAlertWebhooks(triggeredAlerts);
         resolve(triggeredAlerts);
       });
     } else {
@@ -1732,9 +1734,39 @@ function checkAlertRules() {
         alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
         if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
       });
+      // Send webhook notifications for triggered alerts
+      await sendAlertWebhooks(triggeredAlerts);
       resolve(triggeredAlerts);
     }
   });
+}
+
+/**
+ * Send alert notifications to all enabled webhook channels
+ */
+async function sendAlertWebhooks(alerts) {
+  if (!alerts || alerts.length === 0) return;
+  
+  for (const alert of alerts) {
+    const severity = alert.severity || 'info';
+    const color = severity === 'critical' ? '#FF0000' : severity === 'warning' ? '#FFA500' : '#36a64f';
+    
+    const message = alert.message || 'Alert triggered';
+    const title = `🚨 ${alert.rule?.name || 'Alert'}`;
+    
+    const fields = [
+      { title: 'Severity', value: severity, short: true },
+      { title: 'Time', value: alert.timestamp || new Date().toISOString(), short: true }
+    ];
+    
+    // Send to all enabled channels
+    for (const channel of ['slack', 'discord', 'feishu']) {
+      const result = await sendWebhookNotification(channel, message, { title, color, fields });
+      if (result.success) {
+        console.log(`[AlertWebhook] Sent ${channel} notification: ${message}`);
+      }
+    }
+  }
 }
 
 // Webhook Configuration Storage
