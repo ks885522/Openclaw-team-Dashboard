@@ -1179,4 +1179,159 @@ body {
   padding: 24px;
   color: var(--text-muted);
 }
+
+/* ==================== 流暢動畫效果 (#109) ==================== */
+
+/* 卡片基礎動畫 */
+.card, .agent-card, .task-card, .history-item, .metric-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* 卡片 Hover 動畫 */
+.card:hover, .agent-card:hover, .task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* 按鈕動畫 */
+button, .btn {
+  transition: all 0.15s ease;
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+button:active, .btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 狀態變更過渡效果 */
+.status-badge, .agent-status {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* 數字/分數變更動畫 */
+.score-value, .metric-value, .count {
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+/* 載入動畫 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease forwards;
+}
+
+/* 載入時的骨架屏效果 */
+.skeleton {
+  background: linear-gradient(90deg, 
+    var(--bg-card) 25%, 
+    var(--bg-hover) 50%, 
+    var(--bg-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* 列表項目交錯動畫 */
+.card:nth-child(1), .agent-card:nth-child(1), .task-item:nth-child(1), .history-item:nth-child(1) { animation-delay: 0ms; }
+.card:nth-child(2), .agent-card:nth-child(2), .task-item:nth-child(2), .history-item:nth-child(2) { animation-delay: 50ms; }
+.card:nth-child(3), .agent-card:nth-child(3), .task-item:nth-child(3), .history-item:nth-child(3) { animation-delay: 100ms; }
+.card:nth-child(4), .agent-card:nth-child(4), .task-item:nth-child(4), .history-item:nth-child(4) { animation-delay: 150ms; }
+.card:nth-child(5), .agent-card:nth-child(5), .task-item:nth-child(5), .history-item:nth-child(5) { animation-delay: 200ms; }
+.card:nth-child(6), .agent-card:nth-child(6), .task-item:nth-child(6), .history-item:nth-child(6) { animation-delay: 250ms; }
+.card:nth-child(7), .agent-card:nth-child(7), .task-item:nth-child(7), .history-item:nth-child(7) { animation-delay: 300ms; }
+
+.card, .agent-card, .task-item, .history-item {
+  opacity: 0;
+  animation: fadeIn 0.4s ease forwards;
+}
+
+/* 滾動流暢效果 */
+* {
+  scroll-behavior: smooth;
+}
+
+/* 選單/下拉動畫 */
+.dropdown-menu, .select-menu, .menu {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* 儀表板區塊進場動畫 */
+.dashboard-section {
+  opacity: 0;
+  animation: fadeIn 0.5s ease forwards;
+}
+
+.dashboard-section:nth-child(1) { animation-delay: 0.1s; }
+.dashboard-section:nth-child(2) { animation-delay: 0.2s; }
+.dashboard-section:nth-child(3) { animation-delay: 0.3s; }
+.dashboard-section:nth-child(4) { animation-delay: 0.4s; }
+.dashboard-section:nth-child(5) { animation-delay: 0.5s; }
+
+/* 微互動動畫 */
+.hover-scale {
+  transition: transform 0.15s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.hover-lift {
+  transition: transform 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* 進度條動畫 */
+.progress-bar, .progress {
+  transition: width 0.5s ease, background-color 0.3s ease;
+}
+
+/* 標籤/徽章動畫 */
+.tag, .badge {
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+/* 輸入框焦點動畫 */
+input:focus, textarea:focus, select:focus {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Toast 通知動畫 */
+.toast, .notification {
+  animation: slideIn 0.3s ease;
+}
+
+/* 標題/文字閃爍效果 */
+.new-item {
+  animation: pulse 2s ease-in-out 3;
 }
