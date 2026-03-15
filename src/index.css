@@ -304,6 +304,50 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Agent Control Buttons */
+.agent-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.control-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+  border-color: var(--primary);
+}
+
+.control-btn.pause:hover:not(:disabled) {
+  background: rgba(251, 188, 4, 0.2);
+}
+
+.control-btn.stop:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.control-btn.restart:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Project Card */
 .project-card {
   background: var(--bg-card);

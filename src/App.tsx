@@ -3,6 +3,7 @@ import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './serv
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
 import { createAutoIssue, getSuggestedAssignment, type AutoIssueParams } from './services/api/autoIssue'
 import { fetchPerformanceMetrics, type PerformanceMetrics } from './services/api/performanceMetrics'
+import { controlAgent, type AgentAction } from './services/api/agentControl'
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
 import { PerformanceDashboard } from './components/PerformanceDashboard'
@@ -260,6 +261,29 @@ function App() {
       })
   }
 
+  // 處理 Agent 控制操作
+  const handleAgentControl = async (agentId: string, action: AgentAction) => {
+    const actionLabels: Record<AgentAction, string> = {
+      pause: '暫停',
+      resume: '恢復',
+      stop: '終止',
+      restart: '重試',
+    }
+    
+    try {
+      const result = await controlAgent(agentId, action)
+      if (result.success) {
+        showToast('success', `${actionLabels[action]}指令已發送`)
+        // 刷新狀態
+        handleRefresh()
+      } else {
+        showToast('error', result.error || '操作失敗')
+      }
+    } catch (err) {
+      showToast('error', '操作失敗')
+    }
+  }
+
   if (error) {
     return (
       <div className="dashboard error">
@@ -336,7 +360,10 @@ function App() {
             <div className="loading-spinner">載入中...</div>
           ) : (
             <div className="agent-grid">
-              {agents.map(agent => (
+              {agents.map(agent => {
+                // 提取 agent id (去掉 emoji)
+                const agentId = agent.id || agent.name.replace(/[^a-z-]/g, '').toLowerCase()
+                return (
                 <div key={agent.id} className={`agent-card ${agent.status}`}>
                   <div className="agent-emoji">{agent.emoji}</div>
                   <div className="agent-name">{agent.name}</div>
@@ -353,8 +380,34 @@ function App() {
                   <div className="agent-task">
                     {agent.currentTask || '等待新任務...'}
                   </div>
+                  <div className="agent-controls">
+                    <button 
+                      className="control-btn pause" 
+                      title="暫停"
+                      onClick={() => handleAgentControl(agentId, 'pause')}
+                      disabled={agent.status === 'offline'}
+                    >
+                      ⏸️
+                    </button>
+                    <button 
+                      className="control-btn stop" 
+                      title="終止"
+                      onClick={() => handleAgentControl(agentId, 'stop')}
+                      disabled={agent.status === 'offline'}
+                    >
+                      ⏹️
+                    </button>
+                    <button 
+                      className="control-btn restart" 
+                      title="重試"
+                      onClick={() => handleAgentControl(agentId, 'restart')}
+                      disabled={agent.status === 'offline'}
+                    >
+                      🔄
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </section>
