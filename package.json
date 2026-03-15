@@ -13,6 +13,8 @@
     "clean": "bash scripts/kill-server.sh",
     "test:art": "bash scripts/dev-server.sh 3002",
     "test:func": "bash scripts/dev-server.sh 3001",
+    "lint": "echo 'TODO: Implement linting'",
+    "test": "echo 'TODO: Implement tests'",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
