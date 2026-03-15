@@ -649,6 +649,92 @@ const server = http.createServer((req, res) => {
       res.writeHead(405, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
     }
+  } else if (req.url.startsWith('/api/tasks')) {
+    // Task tracking endpoint - Get tasks from GitHub Issues
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const status = url.searchParams.get('status') || 'open'; // open, closed, all
+    const assignee = url.searchParams.get('assignee'); // filter by assignee
+    const labels = url.searchParams.get('labels'); // filter by labels
+    
+    try {
+      // Build gh issue list command
+      let cmd = `gh issue list --state ${status} --limit 100 --json number,title,state,createdAt,closedAt,labels,assignees`;
+      
+      exec(cmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error fetching issues:', error.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to fetch tasks: ' + error.message }));
+          return;
+        }
+        
+        try {
+          let issues = JSON.parse(stdout);
+          
+          // Filter by assignee if provided
+          if (assignee) {
+            issues = issues.filter(issue => 
+              issue.assignees && issue.assignees.some(a => a.login === assignee)
+            );
+          }
+          
+          // Filter by labels if provided
+          if (labels) {
+            const labelList = labels.split(',');
+            issues = issues.filter(issue =>
+              issue.labels && issue.labels.some(l => labelList.includes(l.name))
+            );
+          }
+          
+          // Transform to task format
+          const tasks = issues.map(issue => {
+            // Determine task status
+            let taskStatus = 'pending';
+            if (issue.state === 'CLOSED') {
+              taskStatus = 'completed';
+            }
+            
+            // Extract task type from labels
+            const taskType = issue.labels.find(l => 
+              ['frontend', 'backend', 'devops'].includes(l.name)
+            )?.name || 'unknown';
+            
+            return {
+              id: issue.number,
+              title: issue.title,
+              status: taskStatus,
+              type: taskType,
+              labels: issue.labels.map(l => l.name),
+              createdAt: issue.createdAt,
+              closedAt: issue.closedAt,
+              assignees: issue.assignees.map(a => a.login)
+            };
+          });
+          
+          // Get agent activity for in-progress tasks
+          const activeTasks = tasks.filter(t => t.status === 'pending');
+          const completedTasks = tasks.filter(t => t.status === 'completed');
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            tasks: tasks,
+            summary: {
+              total: tasks.length,
+              active: activeTasks.length,
+              completed: completedTasks.length
+            },
+            timestamp: new Date().toISOString()
+          }));
+        } catch (parseErr) {
+          console.error('Error parsing issues:', parseErr.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to parse tasks' }));
+        }
+      });
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
   } else {
     res.writeHead(404);
     res.end('Not Found');
