@@ -1218,90 +1218,81 @@ const server = http.createServer((req, res) => {
       return;
     }
     
-    // Webhook Configuration Endpoint
-    if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      // 隱藏敏感資訊
-      const safeConfigs = {};
-      for (const [channel, config] of Object.entries(webhookConfigs)) {
-        safeConfigs[channel] = {
-          enabled: config.enabled,
-          url: config.url ? '***configured***' : '',
-          channel: config.channel
-        };
-      }
-      res.end(JSON.stringify(safeConfigs));
-      return;
-    }
-
-    // Update Webhook Configuration
-    if (req.url.startsWith('/api/webhooks/config') && req.method === 'PUT') {
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', () => {
-        try {
-          const data = JSON.parse(body);
-          const { channel, url, enabled, channel: channelName } = data;
-          
-          if (!channel || !['slack', 'discord', 'feishu'].includes(channel)) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Invalid channel. Use: slack, discord, or feishu' }));
-            return;
-          }
-          
-          webhookConfigs[channel] = {
-            enabled: enabled !== undefined ? enabled : webhookConfigs[channel].enabled,
-            url: url || webhookConfigs[channel].url,
-            channel: channelName !== undefined ? channelName : webhookConfigs[channel].channel
-          };
-          
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, channel }));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-      return;
-    }
-
-    // Send Webhook Notification
-    if (req.url.startsWith('/api/webhooks/send') && req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', async () => {
-        try {
-          const data = JSON.parse(body);
-          const { channel, message, title, color, fields } = data;
-          
-          if (!channel || !message) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Missing required fields: channel, message' }));
-            return;
-          }
-          
-          const result = await sendWebhookNotification(channel, message, { title, color, fields });
-          res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-      return;
-    }
-
     // GET: Return available alert endpoints
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       endpoints: [
-        'GET /api/alerts - Get all rules and history',
+        'GET /api/alerts - Get all alert rules and history',
         'POST /api/alerts/check - Check alert rules manually',
         'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
         'DELETE /api/alerts/:id - Reset triggered alert',
         'POST /api/alerts/e2e - Record E2E test result'
       ]
     }));
+  } else if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
+    // Webhook Configuration Endpoint
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    // 隱藏敏感資訊
+    const safeConfigs = {};
+    for (const [channel, config] of Object.entries(webhookConfigs)) {
+      safeConfigs[channel] = {
+        enabled: config.enabled,
+        url: config.url ? '***configured***' : '',
+        channel: config.channel
+      };
+    }
+    res.end(JSON.stringify(safeConfigs));
+  } else if (req.url.startsWith('/api/webhooks/config') && req.method === 'PUT') {
+    // Update Webhook Configuration
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const { channel, url, enabled, channel: channelName } = data;
+        
+        if (!channel || !['slack', 'discord', 'feishu'].includes(channel)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid channel. Use: slack, discord, or feishu' }));
+          return;
+        }
+        
+        webhookConfigs[channel] = {
+          enabled: enabled !== undefined ? enabled : webhookConfigs[channel].enabled,
+          url: url || webhookConfigs[channel].url,
+          channel: channelName !== undefined ? channelName : webhookConfigs[channel].channel
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, channel }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  } else if (req.url.startsWith('/api/webhooks/send') && req.method === 'POST') {
+    // Send Webhook Notification
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { channel, message, title, color, fields } = data;
+        
+        if (!channel || !message) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing required fields: channel, message' }));
+          return;
+        }
+        
+        const result = await sendWebhookNotification(channel, message, { title, color, fields });
+        res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
   } else {
     res.writeHead(404);
     res.end('Not Found');
