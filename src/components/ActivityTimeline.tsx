@@ -23,6 +23,25 @@ const ACTION_CONFIG: Record<AgentAction, { label: string; icon: string; color: s
   'tool_called': { label: '工具', icon: '🔧', color: 'var(--color-primary)' },
   'error_occurred': { label: '錯誤', icon: '⚠️', color: 'var(--status-busy)' },
   'heartbeat': { label: '心跳', icon: '💓', color: 'var(--color-text-dim)' },
+  // Git operations
+  'branch_created': { label: '建分支', icon: '🌿', color: 'var(--color-primary)' },
+  'branch_deleted': { label: '刪分支', icon: '✂️', color: 'var(--color-text-dim)' },
+  'pr_created': { label: '開 PR', icon: '📄', color: 'var(--color-primary)' },
+  'pr_merged': { label: '合併 PR', icon: '🔀', color: 'var(--status-idle)' },
+  'pr_closed': { label: '關閉 PR', icon: '❌', color: 'var(--color-text-dim)' },
+  'commit_pushed': { label: '推送', icon: '📤', color: 'var(--color-primary)' },
+  'code_review': { label: '審查', icon: '👀', color: 'var(--color-primary)' },
+  // Issue tracking
+  'issue_created': { label: '建 Issue', icon: '📝', color: 'var(--color-primary)' },
+  'issue_closed': { label: '關 Issue', icon: '✅', color: 'var(--status-idle)' },
+  // Build & Deploy
+  'build_started': { label: '建構中', icon: '🔨', color: 'var(--color-primary)' },
+  'build_completed': { label: '建構完成', icon: '🏗️', color: 'var(--status-idle)' },
+  'build_failed': { label: '建構失敗', icon: '💥', color: 'var(--status-busy)' },
+  'test_executed': { label: '測試', icon: '🧪', color: 'var(--color-primary)' },
+  'deployment_started': { label: '部署中', icon: '🚀', color: 'var(--color-primary)' },
+  'deployment_completed': { label: '部署完成', icon: '✅', color: 'var(--status-idle)' },
+  'deployment_failed': { label: '部署失敗', icon: '💥', color: 'var(--status-busy)' },
 }
 
 // Format timestamp to full datetime
@@ -40,8 +59,17 @@ function formatDateTime(timestamp: string): string {
 function generateMockActivities(): AgentActivityLog[] {
   const now = Date.now()
   const agents = Object.keys(AGENT_INFO)
-  const actions: AgentAction[] = ['task_assigned', 'task_completed', 'message_sent', 'tool_called', 'session_start', 'session_end']
-  const outcomes: Array<'success' | 'failure' | 'pending'> = ['success', 'success', 'success', 'pending']
+  const actions: AgentAction[] = [
+    'task_assigned', 'task_completed', 'task_failed',
+    'message_sent', 'tool_called', 
+    'session_start', 'session_end',
+    'branch_created', 'pr_created', 'pr_merged',
+    'commit_pushed', 'code_review',
+    'build_started', 'build_completed',
+    'deployment_started', 'deployment_completed',
+    'heartbeat'
+  ]
+  const outcomes: Array<'success' | 'failure' | 'pending'> = ['success', 'success', 'success', 'pending', 'failure']
   
   const activities: AgentActivityLog[] = []
   
@@ -89,6 +117,41 @@ function getActionDescription(action: AgentAction, agentId: string, outcome: str
       return `${agentName} 發生錯誤`
     case 'heartbeat':
       return `${agentName} 心跳檢查`
+    // Git operations
+    case 'branch_created':
+      return `${agentName} 建立分支`
+    case 'branch_deleted':
+      return `${agentName} 刪除分支`
+    case 'pr_created':
+      return `${agentName} 建立 PR`
+    case 'pr_merged':
+      return `${agentName} 合併 PR`
+    case 'pr_closed':
+      return `${agentName} 關閉 PR`
+    case 'commit_pushed':
+      return `${agentName} 推送提交`
+    case 'code_review':
+      return `${agentName} 進行程式碼審查`
+    // Issue tracking
+    case 'issue_created':
+      return `${agentName} 建立 Issue`
+    case 'issue_closed':
+      return `${agentName} 關閉 Issue`
+    // Build & Deploy
+    case 'build_started':
+      return `${agentName} 開始建構`
+    case 'build_completed':
+      return `${agentName} 建構完成`
+    case 'build_failed':
+      return `${agentName} 建構失敗`
+    case 'test_executed':
+      return `${agentName} 執行測試`
+    case 'deployment_started':
+      return `${agentName} 開始部署`
+    case 'deployment_completed':
+      return `${agentName} 部署完成`
+    case 'deployment_failed':
+      return `${agentName} 部署失敗`
     default:
       return `${agentName} 执行了 ${action}`
   }
