@@ -6,15 +6,101 @@ const path = require('path');
 const PORT = 3001;
 const LOG_DIR = path.join(process.cwd(), 'logs');
 const AGENT_LOG_FILE = path.join(LOG_DIR, 'agent-activity.log');
-const SCORE_FILE = path.join(LOG_DIR, 'agent-scores.json');
 const REPO_OWNER = 'ks885522';
 const REPO_NAME = 'Openclaw-team-Dashboard';
 
-// Score constants
-const SCORE_TASK_COMPLETED = 10;   // PR merged
-const SCORE_REVIEW_APPROVED = 5;   // PR approved
-const SCORE_TASK_REJECTED = -3;    // PR closed without merge
-const SCORE_CRITICAL_BUG = 15;     // Critical bug found
+// Score configuration
+const SCORE_CONFIG = {
+  taskCompleted: 10,      // 完成任務
+  reviewApproved: 5,      // 審查通過
+  taskRejected: -3,      // 任務退回
+  criticalBugFound: 15   // 發現關鍵 Bug
+};
+
+// Agent emoji to name mapping
+const AGENT_MAP = {
+  '⚙️': 'engineering',
+  '🎨': 'art-design',
+  '🔍': 'requirements',
+  '📋': 'task-tracking',
+  '🖼️': 'art-review',
+  '🧪': 'feature-review',
+  '🚀': 'devops'
+};
+
+// In-memory score storage (in production, use a database)
+const agentScores = {};
+const scoreHistory = [];
+const MAX_SCORE_HISTORY = 500;
+
+/**
+ * Update agent score with event
+ */
+function updateAgentScore(agentId, eventType, points, details = {}) {
+  if (!agentScores[agentId]) {
+    agentScores[agentId] = 0;
+  }
+  agentScores[agentId] += points;
+  
+  // Record to history
+  scoreHistory.unshift({
+    agentId,
+    eventType,
+    points,
+    newTotal: agentScores[agentId],
+    details,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Keep history bounded
+  if (scoreHistory.length > MAX_SCORE_HISTORY) {
+    scoreHistory.pop();
+  }
+  
+  return { agentId, points, newTotal: agentScores[agentId] };
+}
+
+/**
+ * Calculate scores from GitHub PR events
+ */
+function calculateScoresFromGitHub(prData) {
+  const results = [];
+  const { action, pull_request, sender } = prData;
+  
+  if (!pull_request) return results;
+  
+  const labels = pull_request.labels?.map(l => l.name) || [];
+  const title = pull_request.title || '';
+  const number = pull_request.number;
+  
+  // Determine agent from PR labels or title
+  let agentId = null;
+  for (const [emoji, agent] of Object.entries(AGENT_MAP)) {
+    if (labels.includes(agent) || title.includes(emoji)) {
+      agentId = agent;
+      break;
+    }
+  }
+  
+  if (!agentId) return results;
+  
+  // Calculate based on action
+  if (action === 'closed' && pull_request.merged) {
+    // PR merged - task completed
+    results.push(updateAgentScore(agentId, 'task_completed', SCORE_CONFIG.taskCompleted, {
+      prNumber: number,
+      prTitle: title
+    }));
+  } else if (action === 'closed' && !pull_request.merged) {
+    // PR closed without merge - task rejected
+    results.push(updateAgentScore(agentId, 'task_rejected', SCORE_CONFIG.taskRejected, {
+      prNumber: number,
+      prTitle: title
+    }));
+  }
+  
+  return results;
+}
 
 /**
  * Ensure log directory exists
@@ -135,187 +221,6 @@ function calculateAgentScores() {
   
   return scores;
 }
-
-/**
- * Read agent scores from file
- */
-function readScores() {
-  try {
-    if (!fs.existsSync(SCORE_FILE)) {
-      return {};
-    }
-    const content = fs.readFileSync(SCORE_FILE, 'utf-8');
-    return JSON.parse(content);
-  } catch (err) {
-    console.error('Error reading scores:', err);
-    return {};
-  }
-}
-
-/**
- * Write agent scores to file
- */
-function writeScores(scores) {
-  try {
-    ensureLogDir();
-    fs.writeFileSync(SCORE_FILE, JSON.stringify(scores, null, 2));
-    return true;
-  } catch (err) {
-    console.error('Error writing scores:', err);
-    return false;
-  }
-}
-
-/**
- * Update agent score
- */
-function updateScore(agentId, points, reason) {
-  const scores = readScores();
-  if (!scores[agentId]) {
-    scores[agentId] = { total: 0, history: [] };
-  }
-  scores[agentId].total += points;
-  scores[agentId].history.push({
-    points,
-    reason,
-    timestamp: new Date().toISOString()
-  });
-  
-  // Keep only last 100 history entries
-  if (scores[agentId].history.length > 100) {
-    scores[agentId].history = scores[agentId].history.slice(-100);
-  }
-  
-  writeScores(scores);
-  return scores[agentId];
-}
-
-/**
- * Extract agent ID from PR
- */
-function extractAgentFromPR(pr) {
-  // Check labels for agent
-  const agentLabels = ['engineering', 'art-design', 'requirements', 'task-tracking', 'art-review', 'feature-review', 'devops'];
-  for (const label of pr.labels || []) {
-    if (agentLabels.includes(label.name)) {
-      return label.name;
-    }
-  }
-  
-  // Check title for agent names
-  const agentNames = {
-    '⚙️': 'engineering',
-    '🎨': 'art-design',
-    '🔍': 'requirements',
-    '📋': 'task-tracking',
-    '🖼️': 'art-review',
-    '🧪': 'feature-review',
-    '🚀': 'devops'
-  };
-  
-  for (const [emoji, agent] of Object.entries(agentNames)) {
-    if (pr.title.includes(emoji) || pr.title.includes(`[${agent}]`)) {
-      return agent;
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Process GitHub webhook event
- */
-function processWebhookEvent(event, payload) {
-  const pr = payload.pull_request || payload;
-  const agentId = extractAgentFromPR(pr);
-  
-  if (!agentId) {
-    return null;
-  }
-  
-  let points = 0;
-  let reason = '';
-  
-  if (event === 'pull_request') {
-    if (pr.merged) {
-      points = pr.labels.some(l => l.name === 'critical-bug') ? SCORE_CRITICAL_BUG : SCORE_TASK_COMPLETED;
-      reason = `PR #${pr.number} merged`;
-    } else if (pr.state === 'closed' && !pr.merged) {
-      points = SCORE_TASK_REJECTED;
-      reason = `PR #${pr.number} closed`;
-    }
-  } else if (event === 'pull_request_review') {
-    if (payload.review.state === 'approved') {
-      points = SCORE_REVIEW_APPROVED;
-      reason = `PR #${pr.number} approved`;
-    }
-  }
-  
-  if (points !== 0) {
-    updateScore(agentId, points, reason);
-    return { agentId, points, reason };
-  }
-  
-  return null;
-}
-
-/**
- * Sync scores from GitHub (run on startup)
- */
-function syncScoresFromGitHub() {
-  const scores = readScores();
-  
-  try {
-    // Get merged PRs
-    const mergedPrs = execSync(
-      `gh pr list --state merged --limit 100 --json number,title,labels,mergedAt`,
-      { encoding: 'utf-8' }
-    );
-    const prList = JSON.parse(mergedPrs);
-    
-    // Get closed PRs (not merged)
-    const closedPrs = execSync(
-      `gh pr list --state closed --limit 100 --json number,title,labels,closedAt`,
-      { encoding: 'utf-8' }
-    );
-    const closedPrList = JSON.parse(closedPrs).filter(pr => !pr.mergedAt);
-    
-    // Process merged PRs
-    prList.forEach(pr => {
-      const agentId = extractAgentFromPR(pr);
-      if (agentId) {
-        // Check if already counted
-        const key = `pr-${pr.number}`;
-        if (!scores[key]) {
-          const points = pr.labels.some(l => l.name === 'critical-bug') 
-            ? SCORE_CRITICAL_BUG 
-            : SCORE_TASK_COMPLETED;
-          updateScore(agentId, points, `PR #${pr.number} merged (synced)`);
-          scores[key] = true;
-        }
-      }
-    });
-    
-    // Process closed PRs (not merged)
-    closedPrList.forEach(pr => {
-      const agentId = extractAgentFromPR(pr);
-      if (agentId) {
-        const key = `pr-closed-${pr.number}`;
-        if (!scores[key]) {
-          updateScore(agentId, SCORE_TASK_REJECTED, `PR #${pr.number} closed (synced)`);
-          scores[key] = true;
-        }
-      }
-    });
-    
-    console.log('[AutoScore] Scores synced from GitHub');
-  } catch (err) {
-    console.error('[AutoScore] Error syncing scores:', err.message);
-  }
-}
-
-// Initial sync on load
-syncScoresFromGitHub();
 
 /**
  * Calculate cost and resource metrics from logs
@@ -760,6 +665,84 @@ const server = http.createServer((req, res) => {
         timestamp: new Date().toISOString()
       }));
     }
+  // ==================== Score API Endpoints ====================
+  } else if (req.url === '/api/scores' && req.method === 'GET') {
+    // Get all agent scores
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      scores: agentScores,
+      history: scoreHistory.slice(0, 50), // Last 50 events
+      config: SCORE_CONFIG
+    }));
+    return;
+  } else if (req.url === '/api/scores/leaderboard' && req.method === 'GET') {
+    // Get leaderboard sorted by score
+    const leaderboard = Object.entries(agentScores)
+      .map(([agentId, score]) => ({ agentId, score }))
+      .sort((a, b) => b.score - a.score);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(leaderboard));
+    return;
+  } else if (req.url === '/api/scores/reset' && req.method === 'POST') {
+    // Reset all scores (admin only - no auth for demo)
+    Object.keys(agentScores).forEach(key => delete agentScores[key]);
+    scoreHistory.length = 0;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'All scores reset' }));
+    return;
+  } else if (req.url.startsWith('/api/webhooks/github') && req.method === 'POST') {
+    // GitHub webhook endpoint for PR events
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const event = req.headers['x-github-event'];
+        const payload = JSON.parse(body);
+        
+        console.log(`[Webhook] Received GitHub event: ${event}`);
+        
+        if (event === 'pull_request') {
+          const results = calculateScoresFromGitHub(payload);
+          results.forEach(r => {
+            console.log(`[Score] ${r.agentId}: ${r.points > 0 ? '+' : ''}${r.points} pts (Total: ${r.newTotal})`);
+          });
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, events: results }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `Event ${event} ignored` }));
+        }
+      } catch (err) {
+        console.error('[Webhook] Error:', err.message);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  } else if (req.url === '/api/scores' && req.method === 'POST') {
+    // Manual score update (for testing)
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        if (!data.agentId || !data.eventType || data.points === undefined) {
+          throw new Error('Missing required fields: agentId, eventType, points');
+        }
+        
+        const result = updateAgentScore(data.agentId, data.eventType, data.points, data.details || {});
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
   } else if (req.url.startsWith('/api/sessions')) {
     // Correct command is 'openclaw sessions --all-agents --json'
     exec('npx openclaw sessions --all-agents --json', (error, stdout, stderr) => {
@@ -1087,64 +1070,6 @@ const server = http.createServer((req, res) => {
         override: 'POST { "action": "override", "agent_id": "engineering", "prompt_override": "new prompt" }'
       }
     }));
-  } else if (req.url.startsWith('/api/scores')) {
-    // Get agent scores
-    const scores = readScores();
-    const agents = ['task-tracking', 'requirements', 'art-design', 'engineering', 'art-review', 'feature-review', 'devops'];
-    
-    const scoreList = agents.map(agent => ({
-      id: agent,
-      total: scores[agent]?.total || 0,
-      history: (scores[agent]?.history || []).slice(-10)
-    }));
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      scores: scoreList,
-      timestamp: new Date().toISOString()
-    }));
-  } else if (req.url.startsWith('/api/webhook/github')) {
-    // GitHub webhook endpoint
-    if (req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => {
-        body += chunk.toString();
-      });
-      req.on('end', () => {
-        try {
-          const payload = JSON.parse(body);
-          const event = req.headers['x-github-event'];
-          
-          if (event === 'pull_request' || event === 'pull_request_review') {
-            const result = processWebhookEvent(event, payload);
-            
-            if (result) {
-              console.log(`[AutoScore] ${result.agentId}: ${result.points > 0 ? '+' : ''}${result.points} - ${result.reason}`);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, ...result }));
-            } else {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, message: 'Event processed, no score change' }));
-            }
-          } else {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, message: 'Event type not processed' }));
-          }
-        } catch (err) {
-          console.error('[AutoScore] Webhook error:', err.message);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid payload' }));
-        }
-      });
-    } else {
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
-    }
-  } else if (req.url.startsWith('/api/scores/sync')) {
-    // Manual score sync endpoint
-    syncScoresFromGitHub();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, message: 'Scores synced from GitHub' }));
   } else if (req.url.startsWith('/api/alerts')) {
     // Alert Rules Engine endpoints
     if (req.url === '/api/alerts' && req.method === 'GET') {
