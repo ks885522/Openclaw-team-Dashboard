@@ -44,6 +44,12 @@ function App() {
   const loaderRef = useRef<HTMLDivElement>(null)
   const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
   const [showPromptInjection, setShowPromptInjection] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    show: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+  } | null>(null)
   const [injectionTargetAgent, setInjectionTargetAgent] = useState<{id: string, name: string, emoji: string} | null>(null)
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
@@ -297,18 +303,33 @@ function App() {
       restart: '重試',
     }
     
-    try {
-      const result = await controlAgent(agentId, action)
-      if (result.success) {
-        showToast('success', `${actionLabels[action]}指令已發送`)
-        // 刷新狀態
-        handleRefresh()
-      } else {
-        showToast('error', result.error || '操作失敗')
-      }
-    } catch (err) {
-      showToast('error', '操作失敗')
+    const confirmMessages: Record<AgentAction, { title: string; message: string }> = {
+      pause: { title: '確認暫停', message: `確定要暫停 Agent ${agentId} 嗎？` },
+      resume: { title: '確認恢復', message: `確定要恢復 Agent ${agentId} 嗎？` },
+      stop: { title: '確認終止', message: `確定要終止 Agent ${agentId} 嗎？此操作可能會中斷正在執行的任務。` },
+      restart: { title: '確認重試', message: `確定要重試 Agent ${agentId} 嗎？` },
     }
+    
+    const doAction = async () => {
+      try {
+        const result = await controlAgent(agentId, action)
+        if (result.success) {
+          showToast('success', `${actionLabels[action]}指令已發送`)
+          handleRefresh()
+        } else {
+          showToast('error', result.error || '操作失敗')
+        }
+      } catch (err) {
+        showToast('error', '操作失敗')
+      }
+    }
+    
+    setConfirmDialog({
+      show: true,
+      title: confirmMessages[action].title,
+      message: confirmMessages[action].message,
+      onConfirm: doAction,
+    })
   }
 
   // 打開提示注入面板
@@ -330,6 +351,32 @@ function App() {
   return (
     <div className="dashboard">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      {/* Confirm Dialog */}
+      {confirmDialog?.show && (
+        <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">{confirmDialog.title}</div>
+            <div className="confirm-message">{confirmDialog.message}</div>
+            <div className="confirm-actions">
+              <button 
+                className="btn btn-cancel"
+                onClick={() => setConfirmDialog(null)}
+              >
+                取消
+              </button>
+              <button 
+                className="btn btn-confirm"
+                onClick={() => {
+                  confirmDialog.onConfirm()
+                  setConfirmDialog(null)
+                }}
+              >
+                確認
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="header">
         <div className="header-left">
