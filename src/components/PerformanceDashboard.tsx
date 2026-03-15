@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { fetchPerformanceMetrics, type PerformanceMetrics } from '../services/api/performanceMetrics'
+import { fetchDashboardMetrics, type DashboardMetrics } from '../services/api/dashboardMetrics'
 
 interface AgentStats {
   name: string
   emoji: string
+  agentId: string
   prs: number
   merged: number
   closed: number
@@ -11,10 +13,40 @@ interface AgentStats {
   tasks: number
   successTasks: number
   totalIdleMinutes: number
+  score: number
+}
+
+// Demo data for when API doesn't have enough data
+const DEMO_AGENT_STATS: AgentStats[] = [
+  { name: '編譯器', emoji: '⚙️', agentId: 'engineering', prs: 45, merged: 42, closed: 3, efficiency: 94, tasks: 89, successTasks: 85, totalIdleMinutes: 120, score: 285 },
+  { name: '調色盤', emoji: '🎨', agentId: 'art-design', prs: 38, merged: 35, closed: 3, efficiency: 92, tasks: 72, successTasks: 68, totalIdleMinutes: 180, score: 230 },
+  { name: '部署艦', emoji: '🚀', agentId: 'devops', prs: 32, merged: 30, closed: 2, efficiency: 94, tasks: 65, successTasks: 62, totalIdleMinutes: 90, score: 195 },
+  { name: '測試台', emoji: '🧪', agentId: 'feature-review', prs: 28, merged: 26, closed: 2, efficiency: 93, tasks: 54, successTasks: 51, totalIdleMinutes: 210, score: 170 },
+  { name: '透析器', emoji: '🔍', agentId: 'requirements', prs: 22, merged: 20, closed: 2, efficiency: 91, tasks: 48, successTasks: 44, totalIdleMinutes: 150, score: 145 },
+  { name: '鑑賞家', emoji: '🖼️', agentId: 'art-review', prs: 18, merged: 17, closed: 1, efficiency: 94, tasks: 36, successTasks: 34, totalIdleMinutes: 240, score: 125 },
+  { name: '指揮台', emoji: '📋', agentId: 'task-tracking', prs: 15, merged: 14, closed: 1, efficiency: 93, tasks: 32, successTasks: 30, totalIdleMinutes: 300, score: 95 },
+]
+
+// Generate demo heatmap data
+const generateDemoHeatmapData = () => {
+  const days: { date: string; count: number; label: string }[] = []
+  const now = new Date()
+  for (let i = 27; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i)
+    const dateStr = date.toISOString().split('T')[0]
+    days.push({
+      date: dateStr,
+      count: Math.floor(Math.random() * 20) + 5,
+      label: date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+    })
+  }
+  return days
 }
 
 export function PerformanceDashboard() {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null)
+  const [dashboardData, setDashboardData] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<'7' | '30' | '90'>('30')
@@ -24,11 +56,16 @@ export function PerformanceDashboard() {
       setLoading(true)
       setError(null)
       try {
-        const data = await fetchPerformanceMetrics()
-        setMetrics(data)
+        // Load both regular metrics and dashboard-specific metrics
+        const [metricsData, dashboardData] = await Promise.all([
+          fetchPerformanceMetrics(),
+          fetchDashboardMetrics(parseInt(timeRange))
+        ])
+        setMetrics(metricsData)
+        setDashboardData(dashboardData)
       } catch (err) {
+        console.error('Failed to load metrics:', err)
         setError('無法載入績效數據')
-        console.error(err)
       } finally {
         setLoading(false)
       }
@@ -36,38 +73,62 @@ export function PerformanceDashboard() {
     loadMetrics()
   }, [timeRange])
 
-  // 模擬 Agent 排行榜數據（實際應該從 API 獲取）
-  const agentStats: AgentStats[] = [
-    { name: '編譯器', emoji: '⚙️', prs: 45, merged: 42, closed: 3, efficiency: 94, tasks: 89, successTasks: 85, totalIdleMinutes: 120 },
-    { name: '調色盤', emoji: '🎨', prs: 38, merged: 35, closed: 3, efficiency: 92, tasks: 72, successTasks: 68, totalIdleMinutes: 180 },
-    { name: '部署艦', emoji: '🚀', prs: 32, merged: 30, closed: 2, efficiency: 94, tasks: 65, successTasks: 62, totalIdleMinutes: 90 },
-    { name: '測試台', emoji: '🧪', prs: 28, merged: 26, closed: 2, efficiency: 93, tasks: 54, successTasks: 51, totalIdleMinutes: 210 },
-    { name: '透析器', emoji: '🔍', prs: 22, merged: 20, closed: 2, efficiency: 91, tasks: 48, successTasks: 44, totalIdleMinutes: 150 },
-    { name: '鑑賞家', emoji: '🖼️', prs: 18, merged: 17, closed: 1, efficiency: 94, tasks: 36, successTasks: 34, totalIdleMinutes: 240 },
-    { name: '指揮台', emoji: '📋', prs: 15, merged: 14, closed: 1, efficiency: 93, tasks: 32, successTasks: 30, totalIdleMinutes: 300 },
-  ]
-
-  // 生成熱度圖數據（過去 28 天）
-  const generateHeatmapData = () => {
-    const days: { date: string; count: number; label: string }[] = []
-    const now = new Date()
-    for (let i = 27; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      days.push({
-        date: dateStr,
-        count: Math.floor(Math.random() * 20) + 5, // 模擬數據
-        label: date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
-      })
+  // Get agent stats - prefer API data, fallback to demo
+  const getAgentStats = (): AgentStats[] => {
+    if (dashboardData && dashboardData.agentStats && dashboardData.agentStats.length > 0) {
+      // Merge API agent stats with scores from leaderboard
+      const leaderboardMap = new Map(
+        (dashboardData.leaderboard || []).map(l => [l.agentId, l.score])
+      )
+      
+      return dashboardData.agentStats.map(stats => ({
+        name: stats.name,
+        emoji: stats.emoji,
+        agentId: stats.agentId,
+        prs: stats.prs,
+        merged: stats.merged,
+        closed: stats.closed,
+        efficiency: stats.efficiency,
+        tasks: stats.merged + stats.closed,
+        successTasks: stats.merged,
+        totalIdleMinutes: 0, // Will be filled from idleAnalysis
+        score: leaderboardMap.get(stats.agentId) || 0
+      }))
     }
-    return days
+    
+    // Merge demo data with idle analysis from API if available
+    if (dashboardData?.idleAnalysis?.byAgent) {
+      const idleMap = new Map(
+        dashboardData.idleAnalysis.byAgent.map(a => [a.agentId, a.idleMinutes])
+      )
+      return DEMO_AGENT_STATS.map(agent => ({
+        ...agent,
+        totalIdleMinutes: idleMap.get(agent.agentId) || agent.totalIdleMinutes
+      }))
+    }
+    
+    return DEMO_AGENT_STATS
   }
 
-  const heatmapData = generateHeatmapData()
+  // Get heatmap data - prefer API data, fallback to demo
+  const getHeatmapData = () => {
+    if (dashboardData && dashboardData.heatmap && dashboardData.heatmap.length > 0) {
+      return dashboardData.heatmap
+    }
+    return generateDemoHeatmapData()
+  }
 
-  // 計算空轉分析
+  const agentStats = getAgentStats()
+  const heatmapData = getHeatmapData()
+
+  // Calculate idle analysis
   const calculateIdleAnalysis = () => {
+    if (dashboardData?.idleAnalysis) {
+      return {
+        totalIdle: dashboardData.idleAnalysis.totalIdleMinutes,
+        avgIdle: dashboardData.idleAnalysis.avgIdleMinutes
+      }
+    }
     const totalIdle = agentStats.reduce((sum, agent) => sum + agent.totalIdleMinutes, 0)
     const avgIdle = Math.round(totalIdle / agentStats.length)
     return { totalIdle, avgIdle }
@@ -97,6 +158,10 @@ export function PerformanceDashboard() {
       </div>
     )
   }
+
+  // Get max values for bar calculations
+  const maxMerged = Math.max(...agentStats.map(a => a.merged), 1)
+  const maxIdle = Math.max(...agentStats.map(a => a.totalIdleMinutes), 1)
 
   return (
     <div className="performance-dashboard">
@@ -168,7 +233,7 @@ export function PerformanceDashboard() {
         <h2 className="section-title">🏆 Agent 排行榜</h2>
         <div className="leaderboard">
           {agentStats
-            .sort((a, b) => b.merged - a.merged)
+            .sort((a, b) => b.score - a.score)
             .reduce<Array<{agent: AgentStats; rank: number}>>((acc, agent, idx) => {
               acc.push({ agent, rank: idx + 1 })
               return acc
@@ -190,14 +255,14 @@ export function PerformanceDashboard() {
                     <span className="stat-label">效率</span>
                   </div>
                   <div className="stat-item">
-                    <span className="stat-value">{agent.successTasks}</span>
-                    <span className="stat-label">任務</span>
+                    <span className="stat-value">{agent.score}</span>
+                    <span className="stat-label">積分</span>
                   </div>
                 </div>
                 <div className="leaderboard-bar">
                   <div 
                     className="leaderboard-bar-fill"
-                    style={{ width: `${(agent.merged / agentStats[0].merged) * 100}%` }}
+                    style={{ width: `${(agent.merged / maxMerged) * 100}%` }}
                   ></div>
                 </div>
               </div>
@@ -264,7 +329,7 @@ export function PerformanceDashboard() {
                     <div 
                       className="idle-bar-fill"
                       style={{ 
-                        width: `${(agent.totalIdleMinutes / Math.max(...agentStats.map(a => a.totalIdleMinutes))) * 100}%`,
+                        width: `${(agent.totalIdleMinutes / maxIdle) * 100}%`,
                         backgroundColor: agent.totalIdleMinutes > 200 ? 'var(--status-busy)' : 'var(--status-idle)'
                       }}
                     ></div>
