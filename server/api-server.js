@@ -368,6 +368,74 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // SSE endpoint for real-time log streaming
+  if (req.url.startsWith('/api/logs/stream')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const agentId = url.searchParams.get('agent_id');
+    
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`);
+    
+    // Track last log position for new entries
+    let lastSize = 0;
+    try {
+      if (fs.existsSync(AGENT_LOG_FILE)) {
+        lastSize = fs.statSync(AGENT_LOG_FILE).size;
+      }
+    } catch (e) {}
+    
+    // Poll for new logs every 1 second
+    const intervalId = setInterval(() => {
+      try {
+        if (fs.existsSync(AGENT_LOG_FILE)) {
+          const currentSize = fs.statSync(AGENT_LOG_FILE).size;
+          
+          if (currentSize > lastSize) {
+            // Read new content
+            const stream = fs.createReadStream(AGENT_LOG_FILE, { start: lastSize });
+            let newContent = '';
+            
+            stream.on('data', (chunk) => {
+              newContent += chunk.toString();
+            });
+            
+            stream.on('end', () => {
+              const newLines = newContent.split('\n').filter(line => line.trim());
+              newLines.forEach(line => {
+                try {
+                  const log = JSON.parse(line);
+                  // Filter by agent_id if specified
+                  if (!agentId || log.agent_id === agentId) {
+                    res.write(`data: ${JSON.stringify({ type: 'log', ...log })}\n\n`);
+                  }
+                } catch (e) {}
+              });
+            });
+            
+            lastSize = currentSize;
+          }
+        }
+      } catch (e) {
+        console.error('[SSE] Error reading log file:', e.message);
+      }
+    }, 1000);
+    
+    // Clean up on close
+    req.on('close', () => {
+      clearInterval(intervalId);
+      res.end();
+    });
+    
+    return;
+  }
+
   if (req.url.startsWith('/api/agent-logs')) {
     // POST: Create a new log entry (real-time logging)
     if (req.method === 'POST') {
