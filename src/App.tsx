@@ -6,6 +6,7 @@ import { fetchPerformanceMetrics, type PerformanceMetrics } from './services/api
 import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
 import { PerformanceDashboard } from './components/PerformanceDashboard'
+import { ScoreLeaderboard } from './components/ScoreLeaderboard'
 
 // 項目類型
 interface Project {
@@ -38,7 +39,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -290,6 +291,12 @@ function App() {
             >
               📈 績效看板
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'scores' ? 'active' : ''}`}
+              onClick={() => setActiveTab('scores')}
+            >
+              🏈 積分榜
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -478,6 +485,8 @@ function App() {
           )}
         </section>
         </>
+        ) : activeTab === 'scores' ? (
+          <ScoreLeaderboard />
         ) : (
           <PerformanceDashboard />
         )}

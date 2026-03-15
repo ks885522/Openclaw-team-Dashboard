@@ -9,6 +9,99 @@ const AGENT_LOG_FILE = path.join(LOG_DIR, 'agent-activity.log');
 const REPO_OWNER = 'ks885522';
 const REPO_NAME = 'Openclaw-team-Dashboard';
 
+// Score configuration
+const SCORE_CONFIG = {
+  taskCompleted: 10,      // 完成任務
+  reviewApproved: 5,      // 審查通過
+  taskRejected: -3,      // 任務退回
+  criticalBugFound: 15   // 發現關鍵 Bug
+};
+
+// Agent emoji to name mapping
+const AGENT_MAP = {
+  '⚙️': 'engineering',
+  '🎨': 'art-design',
+  '🔍': 'requirements',
+  '📋': 'task-tracking',
+  '🖼️': 'art-review',
+  '🧪': 'feature-review',
+  '🚀': 'devops'
+};
+
+// In-memory score storage (in production, use a database)
+const agentScores = {};
+const scoreHistory = [];
+const MAX_SCORE_HISTORY = 500;
+
+/**
+ * Update agent score with event
+ */
+function updateAgentScore(agentId, eventType, points, details = {}) {
+  if (!agentScores[agentId]) {
+    agentScores[agentId] = 0;
+  }
+  agentScores[agentId] += points;
+  
+  // Record to history
+  scoreHistory.unshift({
+    agentId,
+    eventType,
+    points,
+    newTotal: agentScores[agentId],
+    details,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Keep history bounded
+  if (scoreHistory.length > MAX_SCORE_HISTORY) {
+    scoreHistory.pop();
+  }
+  
+  return { agentId, points, newTotal: agentScores[agentId] };
+}
+
+/**
+ * Calculate scores from GitHub PR events
+ */
+function calculateScoresFromGitHub(prData) {
+  const results = [];
+  const { action, pull_request, sender } = prData;
+  
+  if (!pull_request) return results;
+  
+  const labels = pull_request.labels?.map(l => l.name) || [];
+  const title = pull_request.title || '';
+  const number = pull_request.number;
+  
+  // Determine agent from PR labels or title
+  let agentId = null;
+  for (const [emoji, agent] of Object.entries(AGENT_MAP)) {
+    if (labels.includes(agent) || title.includes(emoji)) {
+      agentId = agent;
+      break;
+    }
+  }
+  
+  if (!agentId) return results;
+  
+  // Calculate based on action
+  if (action === 'closed' && pull_request.merged) {
+    // PR merged - task completed
+    results.push(updateAgentScore(agentId, 'task_completed', SCORE_CONFIG.taskCompleted, {
+      prNumber: number,
+      prTitle: title
+    }));
+  } else if (action === 'closed' && !pull_request.merged) {
+    // PR closed without merge - task rejected
+    results.push(updateAgentScore(agentId, 'task_rejected', SCORE_CONFIG.taskRejected, {
+      prNumber: number,
+      prTitle: title
+    }));
+  }
+  
+  return results;
+}
+
 /**
  * Ensure log directory exists
  */
@@ -572,6 +665,84 @@ const server = http.createServer((req, res) => {
         timestamp: new Date().toISOString()
       }));
     }
+  // ==================== Score API Endpoints ====================
+  } else if (req.url === '/api/scores' && req.method === 'GET') {
+    // Get all agent scores
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      scores: agentScores,
+      history: scoreHistory.slice(0, 50), // Last 50 events
+      config: SCORE_CONFIG
+    }));
+    return;
+  } else if (req.url === '/api/scores/leaderboard' && req.method === 'GET') {
+    // Get leaderboard sorted by score
+    const leaderboard = Object.entries(agentScores)
+      .map(([agentId, score]) => ({ agentId, score }))
+      .sort((a, b) => b.score - a.score);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(leaderboard));
+    return;
+  } else if (req.url === '/api/scores/reset' && req.method === 'POST') {
+    // Reset all scores (admin only - no auth for demo)
+    Object.keys(agentScores).forEach(key => delete agentScores[key]);
+    scoreHistory.length = 0;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'All scores reset' }));
+    return;
+  } else if (req.url.startsWith('/api/webhooks/github') && req.method === 'POST') {
+    // GitHub webhook endpoint for PR events
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const event = req.headers['x-github-event'];
+        const payload = JSON.parse(body);
+        
+        console.log(`[Webhook] Received GitHub event: ${event}`);
+        
+        if (event === 'pull_request') {
+          const results = calculateScoresFromGitHub(payload);
+          results.forEach(r => {
+            console.log(`[Score] ${r.agentId}: ${r.points > 0 ? '+' : ''}${r.points} pts (Total: ${r.newTotal})`);
+          });
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, events: results }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `Event ${event} ignored` }));
+        }
+      } catch (err) {
+        console.error('[Webhook] Error:', err.message);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  } else if (req.url === '/api/scores' && req.method === 'POST') {
+    // Manual score update (for testing)
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        if (!data.agentId || !data.eventType || data.points === undefined) {
+          throw new Error('Missing required fields: agentId, eventType, points');
+        }
+        
+        const result = updateAgentScore(data.agentId, data.eventType, data.points, data.details || {});
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
   } else if (req.url.startsWith('/api/sessions')) {
     // Correct command is 'openclaw sessions --all-agents --json'
     exec('npx openclaw sessions --all-agents --json', (error, stdout, stderr) => {
