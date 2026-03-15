@@ -529,6 +529,48 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // SSE endpoint for real-time agent status updates
+  if (req.url.startsWith('/api/agent-status/stream')) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Agent status SSE connection established' })}\n\n`);
+    
+    // Store last known status to detect changes
+    let lastAgentStatus = null;
+    
+    // Poll for agent status every 5 seconds (as per requirement)
+    const intervalId = setInterval(async () => {
+      try {
+        const agentStatus = await getAgentStatus();
+        const currentStatus = JSON.stringify(agentStatus);
+        
+        // Compare with last known status
+        if (lastAgentStatus !== null && currentStatus !== lastAgentStatus) {
+          // Status changed - send update
+          res.write(`data: ${JSON.stringify({ type: 'status_update', agents: agentStatus.agents, timestamp: new Date().toISOString() })}\n\n`);
+        }
+        
+        lastAgentStatus = currentStatus;
+      } catch (e) {
+        console.error('[Agent Status SSE] Error:', e.message);
+      }
+    }, 5000);
+    
+    // Clean up on close
+    req.on('close', () => {
+      clearInterval(intervalId);
+      res.end();
+    });
+    
+    return;
+  }
+
   if (req.url.startsWith('/api/agent-logs')) {
     // POST: Create a new log entry (real-time logging)
     if (req.method === 'POST') {

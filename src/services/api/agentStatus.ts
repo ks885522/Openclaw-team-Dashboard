@@ -99,7 +99,103 @@ export function createStatusPoller(
   }
 }
 
+// SSE 即時狀態更新 - 使用 Server-Sent Events 接收即時更新
+export function createStatusSSEUpdater(
+  onUpdate: (agents: AgentStatus[]) => void,
+  onError?: (error: Event) => void
+) {
+  let eventSource: EventSource | null = null
+  let reconnectTimer: number | null = null
+  
+  // 建立 SSE 連接
+  const connect = () => {
+    // 從當前主機獲取 API URL
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
+    const host = window.location.host || 'localhost:3001'
+    const sseUrl = `${protocol}//${host}/api/agent-status/stream`
+    
+    eventSource = new EventSource(sseUrl)
+    
+    // 連接建立
+    eventSource.onopen = () => {
+      console.log('[Agent Status SSE] Connected')
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+    }
+    
+    // 接收訊息
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        
+        if (data.type === 'status_update' && data.agents) {
+          // 將 API 回應映射為 AgentStatus 格式
+          const mappedAgents: AgentStatus[] = AGENT_MEMBERS.map(member => {
+            const apiAgent = data.agents.find((a: any) => 
+              a.id === member.id || a.id === member.name.replace(/[^a-z-]/g, '').toLowerCase()
+            )
+            
+            return {
+              id: member.id,
+              name: `${member.emoji} ${member.name}`,
+              emoji: member.emoji,
+              role: member.role,
+              status: apiAgent?.status || 'offline',
+              currentTask: apiAgent?.currentTask,
+              lastActive: apiAgent?.lastActive ? new Date(apiAgent.lastActive) : undefined,
+            }
+          })
+          
+          onUpdate(mappedAgents)
+        } else if (data.type === 'connected') {
+          console.log('[Agent Status SSE]', data.message)
+        }
+      } catch (e) {
+        console.error('[Agent Status SSE] Parse error:', e)
+      }
+    }
+    
+    // 錯誤處理
+    eventSource.onerror = (error) => {
+      console.error('[Agent Status SSE] Error:', error)
+      eventSource?.close()
+      eventSource = null
+      
+      // 通知錯誤回調
+      if (onError) {
+        onError(error)
+      }
+      
+      // 5 秒後嘗試重新連接
+      if (!reconnectTimer) {
+        reconnectTimer = window.setTimeout(() => {
+          console.log('[Agent Status SSE] Reconnecting...')
+          connect()
+        }, 5000)
+      }
+    }
+  }
+  
+  // 開始連接
+  connect()
+  
+  // 返回停止函數
+  return () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (eventSource) {
+      eventSource.close()
+      eventSource = null
+    }
+  }
+}
+
 export default {
   fetchAgentStatuses,
   createStatusPoller,
+  createStatusSSEUpdater,
 }
