@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAgentStatuses, createStatusPoller, type AgentStatus } from './services/api/agentStatus'
+import { fetchAgentStatuses, createStatusSSEUpdater, type AgentStatus } from './services/api/agentStatus'
 import { fetchCompletedTasks, type CompletedTask } from './services/api/completedTasks'
 import { createAutoIssue, getSuggestedAssignment, type AutoIssueParams } from './services/api/autoIssue'
 import { fetchPerformanceMetrics, type PerformanceMetrics } from './services/api/performanceMetrics'
@@ -62,31 +62,33 @@ function App() {
         showToast('error', '載入 Agent 狀態失敗')
       })
 
-    // 啟動輪詢更新（每 30 秒刷新一次）
-    const stopPolling = createStatusPoller((updatedAgents) => {
-      // 檢測狀態變化並顯示通知
-      setAgents(prevAgents => {
-        const prevMap = new Map(prevAgents.map(a => [a.id, a.status]))
-        updatedAgents.forEach(agent => {
-          const prevStatus = prevMap.get(agent.id)
-          if (prevStatus && prevStatus !== agent.status) {
-            const statusMessages: Record<string, Record<string, string>> = {
-              idle: { busy: '已閒置', offline: '已離線' },
-              busy: { idle: '現在閒置', offline: '已離線' },
-              offline: { idle: '上線了', busy: '上線了' }
+    // 啟動 SSE 即時狀態更新（每 5 秒檢測一次變化）
+    const stopSSE = createStatusSSEUpdater(
+      (updatedAgents) => {
+        // 檢測狀態變化並顯示通知
+        setAgents(prevAgents => {
+          const prevMap = new Map(prevAgents.map(a => [a.id, a.status]))
+          updatedAgents.forEach(agent => {
+            const prevStatus = prevMap.get(agent.id)
+            if (prevStatus && prevStatus !== agent.status) {
+              const statusMessages: Record<string, Record<string, string>> = {
+                idle: { busy: '已閒置', offline: '已離線' },
+                busy: { idle: '現在閒置', offline: '已離線' },
+                offline: { idle: '上線了', busy: '上線了' }
+              }
+              const msg = statusMessages[prevStatus]?.[agent.status]
+              if (msg) {
+                showToast('info', `${agent.name} ${msg}`)
+              }
             }
-            const msg = statusMessages[prevStatus]?.[agent.status]
-            if (msg) {
-              showToast('info', `${agent.name} ${msg}`)
-            }
-          }
+          })
+          return updatedAgents
         })
-        return updatedAgents
-      })
-    }, 30000)
+      }
+    )
 
     return () => {
-      stopPolling()
+      stopSSE()
     }
   }, [])
 
