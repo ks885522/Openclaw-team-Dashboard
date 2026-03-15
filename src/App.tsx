@@ -11,6 +11,7 @@ import { ScoreLeaderboard } from './components/ScoreLeaderboard'
 import { PromptInjectionPanel } from './components/PromptInjection'
 import { ActivityTimeline } from './components/ActivityTimeline'
 import { WorkflowTopology } from './components/WorkflowTopology'
+import AlertHistory from './components/AlertHistory'
 
 // 項目類型
 interface Project {
@@ -47,7 +48,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -365,6 +366,12 @@ function App() {
             >
               📜 活動時間軸
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('alerts')}
+            >
+              🔔 警報歷史
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -596,6 +603,8 @@ function App() {
           <WorkflowTopology />
         ) : activeTab === 'timeline' ? (
           <ActivityTimeline />
+        ) : activeTab === 'alerts' ? (
+          <AlertHistory maxHeight="calc(100vh - 140px)" />
         ) : (
           <PerformanceDashboard />
         )}
