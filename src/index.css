@@ -18,7 +18,7 @@
   /* Status Colors */
   --status-idle: #10B981;
   --status-busy: #F59E0B;
-  --status-offline: #EF4444;
+  --status-offline: #6B7280;
   --status-progress: #3B82F6;
   --status-completed: #8B5CF6;
   --status-blocked: #F59E0B;
@@ -251,7 +251,12 @@ body {
 }
 
 .agent-card.offline {
-  opacity: 0.6;
+  opacity: 0.7;
+  border-color: var(--status-offline);
+}
+
+.agent-card.offline .status-dot.offline {
+  background: var(--status-offline);
 }
 
 .agent-emoji {
