@@ -8,6 +8,7 @@ import { useToast, ToastContainer, showToast } from './hooks/useToast'
 import { VisualAnnotation } from './components/VisualAnnotation'
 import { PerformanceDashboard } from './components/PerformanceDashboard'
 import { ScoreLeaderboard } from './components/ScoreLeaderboard'
+import { PromptInjectionPanel } from './components/PromptInjection'
 
 // 項目類型
 interface Project {
@@ -37,6 +38,8 @@ function App() {
   const { toasts, removeToast } = useToast()
   const loaderRef = useRef<HTMLDivElement>(null)
   const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
+  const [showPromptInjection, setShowPromptInjection] = useState(false)
+  const [injectionTargetAgent, setInjectionTargetAgent] = useState<{id: string, name: string, emoji: string} | null>(null)
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
@@ -284,6 +287,12 @@ function App() {
     }
   }
 
+  // 打開提示注入面板
+  const handleOpenPromptInjection = (agentId: string, agentName: string, agentEmoji: string) => {
+    setInjectionTargetAgent({ id: agentId, name: agentName, emoji: agentEmoji })
+    setShowPromptInjection(true)
+  }
+
   if (error) {
     return (
       <div className="dashboard error">
@@ -404,6 +413,14 @@ function App() {
                       disabled={agent.status === 'offline'}
                     >
                       🔄
+                    </button>
+                    <button 
+                      className="control-btn inject" 
+                      title="注入提示"
+                      onClick={() => handleOpenPromptInjection(agentId, agent.name, agent.emoji)}
+                      disabled={agent.status === 'offline'}
+                    >
+                      💉
                     </button>
                   </div>
                 </div>
@@ -581,6 +598,20 @@ function App() {
           setShowVisualAnnotation(false)
         }}
       />
+      
+      {/* Prompt Injection Panel */}
+      {showPromptInjection && injectionTargetAgent && (
+        <div className="modal-overlay" onClick={() => setShowPromptInjection(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <PromptInjectionPanel
+              agentId={injectionTargetAgent.id}
+              agentName={injectionTargetAgent.name}
+              agentEmoji={injectionTargetAgent.emoji}
+              onClose={() => setShowPromptInjection(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
