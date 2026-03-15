@@ -38,6 +38,7 @@ function App() {
   })
   const { toasts, removeToast } = useToast()
   const prevCompletedTasksRef = useRef<CompletedTask[]>([])
+  const isFirstLoadRef = useRef(true) // 跳過首次載入的 Toast 顯示
   const loaderRef = useRef<HTMLDivElement>(null)
   const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
   const [showPromptInjection, setShowPromptInjection] = useState(false)
@@ -176,14 +177,18 @@ function App() {
           page: 1
         })
         
-        // 检测新完成的任务并显示 Toast
-        const prevTaskIds = new Set(prevCompletedTasksRef.current.map(t => t.id))
-        tasks.forEach(task => {
-          if (!prevTaskIds.has(task.id)) {
-            // 新完成的任务
-            showToast('success', `✅ 任務已完成: ${task.title}`)
-          }
-        })
+        // 检测新完成的任务并显示 Toast（跳过首次加载）
+        if (!isFirstLoadRef.current) {
+          const prevTaskIds = new Set(prevCompletedTasksRef.current.map(t => t.id))
+          tasks.forEach(task => {
+            if (!prevTaskIds.has(task.id)) {
+              // 新完成的任务
+              showToast('success', `✅ 任務已完成: ${task.title}`)
+            }
+          })
+        } else {
+          isFirstLoadRef.current = false
+        }
         
         // 更新 ref
         prevCompletedTasksRef.current = tasks
