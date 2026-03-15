@@ -37,6 +37,7 @@ function App() {
     return (saved as 'dark' | 'light') || 'dark'
   })
   const { toasts, removeToast } = useToast()
+  const prevCompletedTasksRef = useRef<CompletedTask[]>([])
   const loaderRef = useRef<HTMLDivElement>(null)
   const [showVisualAnnotation, setShowVisualAnnotation] = useState(false)
   const [showPromptInjection, setShowPromptInjection] = useState(false)
@@ -170,10 +171,23 @@ function App() {
       try {
         const tasks = await fetchCompletedTasks({
           sortBy: 'closed_at',
-          sortOrder: sortOrder,
+          sortOrder: 'desc', // 始终按降序获取最新完成的任务
           perPage: 10,
           page: 1
         })
+        
+        // 检测新完成的任务并显示 Toast
+        const prevTaskIds = new Set(prevCompletedTasksRef.current.map(t => t.id))
+        tasks.forEach(task => {
+          if (!prevTaskIds.has(task.id)) {
+            // 新完成的任务
+            showToast('success', `✅ 任務已完成: ${task.title}`)
+          }
+        })
+        
+        // 更新 ref
+        prevCompletedTasksRef.current = tasks
+        
         setCompletedTasks(tasks)
         setHasMore(tasks.length >= 10)
       } catch (err) {
