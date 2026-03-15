@@ -2185,3 +2185,340 @@ input:focus, textarea:focus, select:focus {
 .btn-confirm:hover {
   filter: brightness(1.1);
 }
+
+/* ============================================
+   Thinking Chain Display - 思考鏈分層顯示
+   ============================================ */
+
+.thinking-chain {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.thinking-chain.loading,
+.thinking-chain.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--text-muted);
+}
+
+/* Chain Header */
+.chain-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--bg-light);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chain-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chain-agent {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chain-task {
+  padding: 2px 8px;
+  background: var(--bg-card);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chain-status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chain-status.running {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3B82F6;
+}
+
+.chain-status.completed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+}
+
+.chain-status.failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #EF4444;
+}
+
+.chain-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chain-duration {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chain-errors {
+  padding: 2px 8px;
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #EF4444;
+  font-weight: 600;
+}
+
+.chain-toggle-all {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chain-toggle-all:hover {
+  background: var(--bg-light);
+  color: var(--text-primary);
+}
+
+/* Chain Steps */
+.chain-steps {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Individual Step */
+.thinking-step {
+  border-left: 3px solid;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.thinking-step:hover {
+  transform: translateX(2px);
+}
+
+.thinking-step.has-error {
+  border-left-width: 4px;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.step-header:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.step-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.step-icon {
+  font-size: 14px;
+}
+
+.step-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.step-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px;
+}
+
+.step-content {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.step-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.step-code {
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Syntax highlighting */
+.syntax-string {
+  color: #22C55E;
+}
+
+.syntax-number {
+  color: #F59E0B;
+}
+
+.syntax-keyword {
+  color: #8B5CF6;
+}
+
+.syntax-comment {
+  color: #6B7280;
+  font-style: italic;
+}
+
+.syntax-function {
+  color: #3B82F6;
+}
+
+/* Tool information */
+.step-tool {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+}
+
+.tool-label {
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.tool-name {
+  padding: 2px 6px;
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  color: #3B82F6;
+  font-family: monospace;
+}
+
+.tool-input {
+  margin-top: 8px;
+}
+
+.tool-input summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.tool-input pre {
+  margin-top: 6px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+/* Error styling */
+.step-error {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid #EF4444;
+}
+
+.error-label {
+  display: block;
+  font-weight: 600;
+  color: #EF4444;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.step-error p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Chain Footer */
+.chain-footer {
+  padding: 12px 16px;
+  background: var(--bg-light);
+  border-top: 1px solid var(--border);
+}
+
+.chain-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.chain-stats .error-stat {
+  color: #EF4444;
+  font-weight: 600;
+}
+
+/* Panel variant */
+.thinking-chain-panel {
+  height: 100%;
+  overflow: hidden;
+}
+
+.thinking-chain-panel .thinking-chain {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .chain-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .chain-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .chain-stats {
+    gap: 8px;
+    font-size: 11px;
+  }
+}
