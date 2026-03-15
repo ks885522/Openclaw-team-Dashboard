@@ -28,6 +28,36 @@ const AGENT_MAP = {
   '🚀': 'devops'
 };
 
+// SSE (Server-Sent Events) clients storage
+const sseClients = new Set();
+
+/**
+ * Broadcast event to all connected SSE clients
+ * Optionally filter by agent ID
+ */
+function broadcastEvent(eventType, data, agentId = null) {
+  const event = {
+    type: eventType,
+    data: data,
+    timestamp: new Date().toISOString()
+  };
+  
+  const message = `data: ${JSON.stringify(event)}\n\n`;
+  
+  sseClients.forEach(client => {
+    // Filter by agent if specified
+    if (agentId && client.agentId && client.agentId !== agentId) {
+      return;
+    }
+    try {
+      client.res.write(message);
+    } catch (err) {
+      console.error('[SSE] Error writing to client:', err);
+      sseClients.delete(client);
+    }
+  });
+}
+
 // In-memory score storage (in production, use a database)
 const agentScores = {};
 const scoreHistory = [];
@@ -124,6 +154,8 @@ function writeAgentLog(logEntry) {
       console.error('[AgentLogger] Failed to write to log file:', err);
       return false;
     }
+    // Broadcast to SSE clients
+    broadcastEvent('log', logEntry, logEntry.agent_id);
     return true;
   });
   
@@ -707,6 +739,39 @@ const server = http.createServer((req, res) => {
         timestamp: new Date().toISOString()
       }));
     }
+  // ==================== SSE (Server-Sent Events) Endpoints ====================
+  } else if (req.url.startsWith('/api/events') && req.method === 'GET') {
+    // SSE endpoint for real-time log streaming
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const agentId = url.searchParams.get('agent'); // Optional: filter by agent
+    
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established', agentId })}\n\n`);
+    
+    // Create client object
+    const client = {
+      res,
+      agentId,
+      connectedAt: new Date().toISOString()
+    };
+    
+    sseClients.add(client);
+    console.log(`[SSE] Client connected. Total clients: ${sseClients.size}, agent filter: ${agentId || 'all'}`);
+    
+    // Handle client disconnect
+    req.on('close', () => {
+      sseClients.delete(client);
+      console.log(`[SSE] Client disconnected. Total clients: ${sseClients.size}`);
+    });
+    return;
   // ==================== Score API Endpoints ====================
   } else if (req.url === '/api/scores' && req.method === 'GET') {
     // Get all agent scores
