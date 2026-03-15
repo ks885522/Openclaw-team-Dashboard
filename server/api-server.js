@@ -831,11 +831,157 @@ const server = http.createServer((req, res) => {
         override: 'POST { "action": "override", "agent_id": "engineering", "prompt_override": "new prompt" }'
       }
     }));
+  } else if (req.url.startsWith('/api/alerts')) {
+    // Alert Rules Engine endpoints
+    if (req.url === '/api/alerts' && req.method === 'GET') {
+      // Get all alert rules and history
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rules: alertRules, history: alertHistory }));
+      return;
+    }
+    
+    // Check alerts manually
+    if (req.url === '/api/alerts/check' && req.method === 'POST') {
+      checkAlertRules().then(triggered => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ checked: true, triggered: triggered }));
+      });
+      return;
+    }
+    
+    // Update alert rule
+    if (req.url.startsWith('/api/alerts/') && req.method === 'PATCH') {
+      const ruleId = req.url.split('/').pop();
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const rule = alertRules.find(r => r.id === ruleId);
+          if (!rule) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Rule not found' }));
+            return;
+          }
+          if (data.enabled !== undefined) rule.enabled = data.enabled;
+          if (data.threshold !== undefined) rule.threshold = data.threshold;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, rule }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+    
+    // Reset alert rule
+    if (req.url.startsWith('/api/alerts/') && req.method === 'DELETE') {
+      const ruleId = req.url.split('/').pop();
+      const success = resetAlertRule(ruleId);
+      res.writeHead(success ? 200 : 404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success, ruleId }));
+      return;
+    }
+    
+    // Record E2E result
+    if (req.url === '/api/alerts/e2e' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          recordE2EResult(data.status || 'unknown');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET: Return available alert endpoints
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      endpoints: [
+        'GET /api/alerts - Get all rules and history',
+        'POST /api/alerts/check - Check alert rules manually',
+        'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
+        'DELETE /api/alerts/:id - Reset triggered alert',
+        'POST /api/alerts/e2e - Record E2E test result'
+      ]
+    }));
   } else {
     res.writeHead(404);
     res.end('Not Found');
   }
 });
+
+// Alert Rules Engine
+const alertRules = [
+  { id: 'e2e-fail-3', name: 'E2E 連續失敗 3 次', type: 'e2e_failure', threshold: 3, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'agent-offline-5min', name: 'Agent 離線 5 分鐘', type: 'agent_offline', threshold: 5 * 60 * 1000, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null }
+];
+const e2eResults = [];
+const MAX_E2E_RESULTS = 100;
+const alertHistory = [];
+const MAX_ALERT_HISTORY = 50;
+
+function checkAlertRules() {
+  return new Promise((resolve) => {
+    const triggeredAlerts = [];
+    const e2eRule = alertRules.find(r => r.id === 'e2e-fail-3');
+    if (e2eRule && e2eRule.enabled) {
+      const recentFailures = e2eResults.filter(r => r.status === 'failure').slice(-e2eRule.threshold);
+      if (recentFailures.length >= e2eRule.threshold && !e2eRule.triggered) {
+        e2eRule.triggered = true;
+        e2eRule.lastTriggered = new Date().toISOString();
+        triggeredAlerts.push({ rule: e2eRule, message: `E2E 測試連續失敗 ${e2eRule.threshold} 次`, severity: 'critical' });
+      }
+    }
+    const offlineRule = alertRules.find(r => r.id === 'agent-offline-5min');
+    if (offlineRule && offlineRule.enabled) {
+      getAgentStatus().then(agentStatusList => {
+        const offlineAgents = agentStatusList.filter(a => a.status === 'offline');
+        offlineAgents.forEach(agent => {
+          if (agent.lastActive) {
+            const offlineMs = Date.now() - new Date(agent.lastActive).getTime();
+            if (offlineMs >= offlineRule.threshold && !offlineRule.triggered) {
+              offlineRule.triggered = true;
+              offlineRule.lastTriggered = new Date().toISOString();
+              triggeredAlerts.push({ rule: offlineRule, message: `Agent ${agent.name} (${agent.id}) 已離線超過 5 分鐘`, severity: 'warning', agent: agent.id });
+            }
+          }
+        });
+        triggeredAlerts.forEach(alert => {
+          alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
+          if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
+        });
+        resolve(triggeredAlerts);
+      });
+    } else {
+      triggeredAlerts.forEach(alert => {
+        alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
+        if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
+      });
+      resolve(triggeredAlerts);
+    }
+  });
+}
+
+function recordE2EResult(status) {
+  e2eResults.push({ status, timestamp: new Date().toISOString() });
+  if (e2eResults.length > MAX_E2E_RESULTS) e2eResults.shift();
+}
+
+function resetAlertRule(ruleId) {
+  const rule = alertRules.find(r => r.id === ruleId);
+  if (rule) { rule.triggered = false; return true; }
+  return false;
+}
 
 server.listen(PORT, () => {
   console.log(`OpenClaw Dashboard API Server running at http://localhost:${PORT}`);
