@@ -6,8 +6,15 @@ const path = require('path');
 const PORT = 3001;
 const LOG_DIR = path.join(process.cwd(), 'logs');
 const AGENT_LOG_FILE = path.join(LOG_DIR, 'agent-activity.log');
+const SCORE_FILE = path.join(LOG_DIR, 'agent-scores.json');
 const REPO_OWNER = 'ks885522';
 const REPO_NAME = 'Openclaw-team-Dashboard';
+
+// Score constants
+const SCORE_TASK_COMPLETED = 10;   // PR merged
+const SCORE_REVIEW_APPROVED = 5;   // PR approved
+const SCORE_TASK_REJECTED = -3;    // PR closed without merge
+const SCORE_CRITICAL_BUG = 15;     // Critical bug found
 
 /**
  * Ensure log directory exists
@@ -128,6 +135,203 @@ function calculateAgentScores() {
   
   return scores;
 }
+
+/**
+ * Read agent scores from file
+ */
+function readScores() {
+  try {
+    if (!fs.existsSync(SCORE_FILE)) {
+      return {};
+    }
+    const content = fs.readFileSync(SCORE_FILE, 'utf-8');
+    return JSON.parse(content);
+  } catch (err) {
+    console.error('Error reading scores:', err);
+    return {};
+  }
+}
+
+/**
+ * Write agent scores to file
+ */
+function writeScores(scores) {
+  try {
+    ensureLogDir();
+    fs.writeFileSync(SCORE_FILE, JSON.stringify(scores, null, 2));
+    return true;
+  } catch (err) {
+    console.error('Error writing scores:', err);
+    return false;
+  }
+}
+
+/**
+ * Update agent score
+ */
+function updateScore(agentId, points, reason) {
+  const scores = readScores();
+  if (!scores[agentId]) {
+    scores[agentId] = { total: 0, history: [] };
+  }
+  scores[agentId].total += points;
+  scores[agentId].history.push({
+    points,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Keep only last 100 history entries
+  if (scores[agentId].history.length > 100) {
+    scores[agentId].history = scores[agentId].history.slice(-100);
+  }
+  
+  writeScores(scores);
+  return scores[agentId];
+}
+
+/**
+ * Process GitHub webhook event for PR scoring
+ */
+function processWebhookEvent(event, payload) {
+  const action = payload.action;
+  const pr = payload.pull_request;
+  
+  if (!pr) return null;
+  
+  // Extract agent from PR title or labels
+  const agentId = extractAgentFromPR(pr);
+  if (!agentId) return null;
+  
+  let scoreChange = 0;
+  let reason = '';
+  
+  switch (event) {
+    case 'pull_request':
+      if (action === 'closed' && pr.merged) {
+        // PR merged - task completed
+        scoreChange = SCORE_TASK_COMPLETED;
+        reason = `PR #${pr.number} merged - Task completed`;
+      } else if (action === 'closed' && !pr.merged) {
+        // PR closed without merge - task rejected
+        scoreChange = SCORE_TASK_REJECTED;
+        reason = `PR #${pr.number} closed - Task rejected`;
+      }
+      break;
+    case 'pull_request_review':
+      if (action === 'submitted' && payload.review.state === 'approved') {
+        // PR approved - review completed
+        scoreChange = SCORE_REVIEW_APPROVED;
+        reason = `PR #${pr.number} approved - Review completed`;
+      }
+      break;
+    default:
+      return null;
+  }
+  
+  // Check for critical bug label
+  if (pr.labels && pr.labels.some(l => l.name === 'critical-bug')) {
+    scoreChange = Math.max(scoreChange, SCORE_CRITICAL_BUG);
+    reason = `PR #${pr.number} - Critical bug found`;
+  }
+  
+  if (scoreChange !== 0 && agentId) {
+    updateScore(agentId, scoreChange, reason);
+    return { agentId, points: scoreChange, reason };
+  }
+  
+  return null;
+}
+
+/**
+ * Extract agent ID from PR title or labels
+ */
+function extractAgentFromPR(pr) {
+  // Check labels first
+  const agentLabels = ['engineering', 'art-design', 'requirements', 'task-tracking', 'art-review', 'feature-review', 'devops'];
+  for (const label of pr.labels || []) {
+    if (agentLabels.includes(label.name)) {
+      return label.name;
+    }
+  }
+  
+  // Check title for agent names
+  const agentNames = {
+    '⚙️': 'engineering',
+    '🎨': 'art-design',
+    '🔍': 'requirements',
+    '📋': 'task-tracking',
+    '🖼️': 'art-review',
+    '🧪': 'feature-review',
+    '🚀': 'devops'
+  };
+  
+  for (const [emoji, agent] of Object.entries(agentNames)) {
+    if (pr.title.includes(emoji) || pr.title.includes(`[${agent}]`)) {
+      return agent;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Sync scores from GitHub (run on startup)
+ */
+function syncScoresFromGitHub() {
+  const scores = readScores();
+  
+  try {
+    // Get merged PRs
+    const mergedPrs = execSync(
+      `gh pr list --state merged --limit 100 --json number,title,labels,mergedAt`,
+      { encoding: 'utf-8' }
+    );
+    const prList = JSON.parse(mergedPrs);
+    
+    // Get closed PRs (not merged)
+    const closedPrs = execSync(
+      `gh pr list --state closed --limit 100 --json number,title,labels,closedAt`,
+      { encoding: 'utf-8' }
+    );
+    const closedPrList = JSON.parse(closedPrs).filter(pr => !pr.mergedAt);
+    
+    // Process merged PRs
+    prList.forEach(pr => {
+      const agentId = extractAgentFromPR(pr);
+      if (agentId) {
+        // Check if already counted
+        const key = `pr-${pr.number}`;
+        if (!scores[key]) {
+          const points = pr.labels.some(l => l.name === 'critical-bug') 
+            ? SCORE_CRITICAL_BUG 
+            : SCORE_TASK_COMPLETED;
+          updateScore(agentId, points, `PR #${pr.number} merged (synced)`);
+          scores[key] = true;
+        }
+      }
+    });
+    
+    // Process closed PRs (not merged)
+    closedPrList.forEach(pr => {
+      const agentId = extractAgentFromPR(pr);
+      if (agentId) {
+        const key = `pr-closed-${pr.number}`;
+        if (!scores[key]) {
+          updateScore(agentId, SCORE_TASK_REJECTED, `PR #${pr.number} closed (synced)`);
+          scores[key] = true;
+        }
+      }
+    });
+    
+    console.log('[AutoScore] Scores synced from GitHub');
+  } catch (err) {
+    console.error('[AutoScore] Error syncing scores:', err.message);
+  }
+}
+
+// Initial sync on load
+syncScoresFromGitHub();
 
 /**
  * Calculate cost and resource metrics from logs
@@ -735,6 +939,64 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
     }
+  } else if (req.url.startsWith('/api/scores')) {
+    // Get agent scores
+    const scores = readScores();
+    const agents = ['task-tracking', 'requirements', 'art-design', 'engineering', 'art-review', 'feature-review', 'devops'];
+    
+    const scoreList = agents.map(agent => ({
+      id: agent,
+      total: scores[agent]?.total || 0,
+      history: (scores[agent]?.history || []).slice(-10)
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      scores: scoreList,
+      timestamp: new Date().toISOString()
+    }));
+  } else if (req.url.startsWith('/api/webhook/github')) {
+    // GitHub webhook endpoint
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+          const event = req.headers['x-github-event'];
+          
+          if (event === 'pull_request' || event === 'pull_request_review') {
+            const result = processWebhookEvent(event, payload);
+            
+            if (result) {
+              console.log(`[AutoScore] ${result.agentId}: ${result.points > 0 ? '+' : ''}${result.points} - ${result.reason}`);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, ...result }));
+            } else {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'Event processed, no score change' }));
+            }
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Event type not processed' }));
+          }
+        } catch (err) {
+          console.error('[AutoScore] Webhook error:', err.message);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid payload' }));
+        }
+      });
+    } else {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
+    }
+  } else if (req.url.startsWith('/api/scores/sync')) {
+    // Manual score sync endpoint
+    syncScoresFromGitHub();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Scores synced from GitHub' }));
   } else {
     res.writeHead(404);
     res.end('Not Found');
