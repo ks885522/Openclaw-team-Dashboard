@@ -11,6 +11,7 @@ import { ScoreLeaderboard } from './components/ScoreLeaderboard'
 import { PromptInjectionPanel } from './components/PromptInjection'
 import { ActivityTimeline } from './components/ActivityTimeline'
 import { WorkflowTopology } from './components/WorkflowTopology'
+import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
 import AlertHistory from './components/AlertHistory'
 
 // 項目類型
@@ -54,7 +55,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -419,6 +420,12 @@ function App() {
             >
               🔔 警報歷史
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'thinking' ? 'active' : ''}`}
+              onClick={() => setActiveTab('thinking')}
+            >
+              🧠 思考鏈
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -652,6 +659,8 @@ function App() {
           <ActivityTimeline />
         ) : activeTab === 'alerts' ? (
           <AlertHistory maxHeight="calc(100vh - 140px)" />
+        ) : activeTab === 'thinking' ? (
+          <ThinkingChainDisplay maxHeight="calc(100vh - 140px)" />
         ) : (
           <PerformanceDashboard />
         )}
