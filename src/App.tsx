@@ -9,6 +9,7 @@ import { VisualAnnotation } from './components/VisualAnnotation'
 import { PerformanceDashboard } from './components/PerformanceDashboard'
 import { ScoreLeaderboard } from './components/ScoreLeaderboard'
 import { PromptInjectionPanel } from './components/PromptInjection'
+import { WorkflowTopology } from './components/WorkflowTopology'
 
 // 項目類型
 interface Project {
@@ -43,7 +44,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -330,6 +331,12 @@ function App() {
             >
               🏈 積分榜
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'topology' ? 'active' : ''}`}
+              onClick={() => setActiveTab('topology')}
+            >
+              🔗 依賴拓撲
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -557,6 +564,8 @@ function App() {
         </>
         ) : activeTab === 'scores' ? (
           <ScoreLeaderboard />
+        ) : activeTab === 'topology' ? (
+          <WorkflowTopology />
         ) : (
           <PerformanceDashboard />
         )}
