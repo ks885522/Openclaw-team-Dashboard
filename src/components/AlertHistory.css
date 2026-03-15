@@ -1,5 +1,5 @@
 .alert-history {
-  background: var(--bg-secondary, #1e1e2e);
+  background: var(--bg-card, #151B26);
   border-radius: 12px;
   padding: 16px;
   color: var(--text-primary, #e0e0e0);
@@ -43,7 +43,7 @@
 }
 
 .alert-count {
-  background: var(--bg-tertiary, #2a2a3e);
+  background: var(--bg-light, #1E2533);
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 12px;
@@ -58,7 +58,7 @@
 }
 
 .filter-select {
-  background: var(--bg-tertiary, #2a2a3e);
+  background: var(--bg-light, #1E2533);
   border: 1px solid var(--border-color, #333);
   color: var(--text-primary, #e0e0e0);
   padding: 6px 12px;
@@ -99,7 +99,7 @@
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: var(--bg-tertiary, #2a2a3e);
+  background: var(--bg-light, #1E2533);
   border-radius: 8px;
   border-left: 3px solid transparent;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -147,7 +147,7 @@
 }
 
 .alert-rule {
-  background: var(--bg-secondary, #1e1e2e);
+  background: var(--bg-card, #151B26);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -166,7 +166,7 @@
 }
 
 .alert-list::-webkit-scrollbar-track {
-  background: var(--bg-tertiary, #2a2a3e);
+  background: var(--bg-light, #1E2533);
   border-radius: 3px;
 }
 
