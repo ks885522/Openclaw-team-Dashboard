@@ -191,63 +191,10 @@ function updateScore(agentId, points, reason) {
 }
 
 /**
- * Process GitHub webhook event for PR scoring
- */
-function processWebhookEvent(event, payload) {
-  const action = payload.action;
-  const pr = payload.pull_request;
-  
-  if (!pr) return null;
-  
-  // Extract agent from PR title or labels
-  const agentId = extractAgentFromPR(pr);
-  if (!agentId) return null;
-  
-  let scoreChange = 0;
-  let reason = '';
-  
-  switch (event) {
-    case 'pull_request':
-      if (action === 'closed' && pr.merged) {
-        // PR merged - task completed
-        scoreChange = SCORE_TASK_COMPLETED;
-        reason = `PR #${pr.number} merged - Task completed`;
-      } else if (action === 'closed' && !pr.merged) {
-        // PR closed without merge - task rejected
-        scoreChange = SCORE_TASK_REJECTED;
-        reason = `PR #${pr.number} closed - Task rejected`;
-      }
-      break;
-    case 'pull_request_review':
-      if (action === 'submitted' && payload.review.state === 'approved') {
-        // PR approved - review completed
-        scoreChange = SCORE_REVIEW_APPROVED;
-        reason = `PR #${pr.number} approved - Review completed`;
-      }
-      break;
-    default:
-      return null;
-  }
-  
-  // Check for critical bug label
-  if (pr.labels && pr.labels.some(l => l.name === 'critical-bug')) {
-    scoreChange = Math.max(scoreChange, SCORE_CRITICAL_BUG);
-    reason = `PR #${pr.number} - Critical bug found`;
-  }
-  
-  if (scoreChange !== 0 && agentId) {
-    updateScore(agentId, scoreChange, reason);
-    return { agentId, points: scoreChange, reason };
-  }
-  
-  return null;
-}
-
-/**
- * Extract agent ID from PR title or labels
+ * Extract agent ID from PR
  */
 function extractAgentFromPR(pr) {
-  // Check labels first
+  // Check labels for agent
   const agentLabels = ['engineering', 'art-design', 'requirements', 'task-tracking', 'art-review', 'feature-review', 'devops'];
   for (const label of pr.labels || []) {
     if (agentLabels.includes(label.name)) {
@@ -270,6 +217,43 @@ function extractAgentFromPR(pr) {
     if (pr.title.includes(emoji) || pr.title.includes(`[${agent}]`)) {
       return agent;
     }
+  }
+  
+  return null;
+}
+
+/**
+ * Process GitHub webhook event
+ */
+function processWebhookEvent(event, payload) {
+  const pr = payload.pull_request || payload;
+  const agentId = extractAgentFromPR(pr);
+  
+  if (!agentId) {
+    return null;
+  }
+  
+  let points = 0;
+  let reason = '';
+  
+  if (event === 'pull_request') {
+    if (pr.merged) {
+      points = pr.labels.some(l => l.name === 'critical-bug') ? SCORE_CRITICAL_BUG : SCORE_TASK_COMPLETED;
+      reason = `PR #${pr.number} merged`;
+    } else if (pr.state === 'closed' && !pr.merged) {
+      points = SCORE_TASK_REJECTED;
+      reason = `PR #${pr.number} closed`;
+    }
+  } else if (event === 'pull_request_review') {
+    if (payload.review.state === 'approved') {
+      points = SCORE_REVIEW_APPROVED;
+      reason = `PR #${pr.number} approved`;
+    }
+  }
+  
+  if (points !== 0) {
+    updateScore(agentId, points, reason);
+    return { agentId, points, reason };
   }
   
   return null;
@@ -569,6 +553,74 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // SSE endpoint for real-time log streaming
+  if (req.url.startsWith('/api/logs/stream')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const agentId = url.searchParams.get('agent_id');
+    
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`);
+    
+    // Track last log position for new entries
+    let lastSize = 0;
+    try {
+      if (fs.existsSync(AGENT_LOG_FILE)) {
+        lastSize = fs.statSync(AGENT_LOG_FILE).size;
+      }
+    } catch (e) {}
+    
+    // Poll for new logs every 1 second
+    const intervalId = setInterval(() => {
+      try {
+        if (fs.existsSync(AGENT_LOG_FILE)) {
+          const currentSize = fs.statSync(AGENT_LOG_FILE).size;
+          
+          if (currentSize > lastSize) {
+            // Read new content
+            const stream = fs.createReadStream(AGENT_LOG_FILE, { start: lastSize });
+            let newContent = '';
+            
+            stream.on('data', (chunk) => {
+              newContent += chunk.toString();
+            });
+            
+            stream.on('end', () => {
+              const newLines = newContent.split('\n').filter(line => line.trim());
+              newLines.forEach(line => {
+                try {
+                  const log = JSON.parse(line);
+                  // Filter by agent_id if specified
+                  if (!agentId || log.agent_id === agentId) {
+                    res.write(`data: ${JSON.stringify({ type: 'log', ...log })}\n\n`);
+                  }
+                } catch (e) {}
+              });
+            });
+            
+            lastSize = currentSize;
+          }
+        }
+      } catch (e) {
+        console.error('[SSE] Error reading log file:', e.message);
+      }
+    }, 1000);
+    
+    // Clean up on close
+    req.on('close', () => {
+      clearInterval(intervalId);
+      res.end();
+    });
+    
     return;
   }
 
@@ -939,64 +991,6 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
     }
-  } else if (req.url.startsWith('/api/scores')) {
-    // Get agent scores
-    const scores = readScores();
-    const agents = ['task-tracking', 'requirements', 'art-design', 'engineering', 'art-review', 'feature-review', 'devops'];
-    
-    const scoreList = agents.map(agent => ({
-      id: agent,
-      total: scores[agent]?.total || 0,
-      history: (scores[agent]?.history || []).slice(-10)
-    }));
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      scores: scoreList,
-      timestamp: new Date().toISOString()
-    }));
-  } else if (req.url.startsWith('/api/webhook/github')) {
-    // GitHub webhook endpoint
-    if (req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => {
-        body += chunk.toString();
-      });
-      req.on('end', () => {
-        try {
-          const payload = JSON.parse(body);
-          const event = req.headers['x-github-event'];
-          
-          if (event === 'pull_request' || event === 'pull_request_review') {
-            const result = processWebhookEvent(event, payload);
-            
-            if (result) {
-              console.log(`[AutoScore] ${result.agentId}: ${result.points > 0 ? '+' : ''}${result.points} - ${result.reason}`);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, ...result }));
-            } else {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, message: 'Event processed, no score change' }));
-            }
-          } else {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, message: 'Event type not processed' }));
-          }
-        } catch (err) {
-          console.error('[AutoScore] Webhook error:', err.message);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid payload' }));
-        }
-      });
-    } else {
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
-    }
-  } else if (req.url.startsWith('/api/scores/sync')) {
-    // Manual score sync endpoint
-    syncScoresFromGitHub();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, message: 'Scores synced from GitHub' }));
   } else if (req.url.startsWith('/api/agent/control')) {
     // Agent control endpoints: pause, terminate, retry, override
     if (req.method === 'POST') {
@@ -1073,8 +1067,71 @@ const server = http.createServer((req, res) => {
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(result));
+          
         } catch (err) {
-          console.error('[AgentControl] Error:', err.message);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON: ' + err.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET: Return available control actions
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      actions: ['pause', 'terminate', 'retry', 'override'],
+      usage: {
+        pause: 'POST { "action": "pause", "agent_id": "engineering", "session_id": "xxx" }',
+        terminate: 'POST { "action": "terminate", "agent_id": "engineering", "session_id": "xxx" }',
+        retry: 'POST { "action": "retry", "agent_id": "engineering", "task_id": 123 }',
+        override: 'POST { "action": "override", "agent_id": "engineering", "prompt_override": "new prompt" }'
+      }
+    }));
+  } else if (req.url.startsWith('/api/scores')) {
+    // Get agent scores
+    const scores = readScores();
+    const agents = ['task-tracking', 'requirements', 'art-design', 'engineering', 'art-review', 'feature-review', 'devops'];
+    
+    const scoreList = agents.map(agent => ({
+      id: agent,
+      total: scores[agent]?.total || 0,
+      history: (scores[agent]?.history || []).slice(-10)
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      scores: scoreList,
+      timestamp: new Date().toISOString()
+    }));
+  } else if (req.url.startsWith('/api/webhook/github')) {
+    // GitHub webhook endpoint
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+          const event = req.headers['x-github-event'];
+          
+          if (event === 'pull_request' || event === 'pull_request_review') {
+            const result = processWebhookEvent(event, payload);
+            
+            if (result) {
+              console.log(`[AutoScore] ${result.agentId}: ${result.points > 0 ? '+' : ''}${result.points} - ${result.reason}`);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, ...result }));
+            } else {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'Event processed, no score change' }));
+            }
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Event type not processed' }));
+          }
+        } catch (err) {
+          console.error('[AutoScore] Webhook error:', err.message);
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid payload' }));
         }
@@ -1083,11 +1140,162 @@ const server = http.createServer((req, res) => {
       res.writeHead(405, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
     }
+  } else if (req.url.startsWith('/api/scores/sync')) {
+    // Manual score sync endpoint
+    syncScoresFromGitHub();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Scores synced from GitHub' }));
+  } else if (req.url.startsWith('/api/alerts')) {
+    // Alert Rules Engine endpoints
+    if (req.url === '/api/alerts' && req.method === 'GET') {
+      // Get all alert rules and history
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rules: alertRules, history: alertHistory }));
+      return;
+    }
+    
+    // Check alerts manually
+    if (req.url === '/api/alerts/check' && req.method === 'POST') {
+      checkAlertRules().then(triggered => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ checked: true, triggered: triggered }));
+      });
+      return;
+    }
+    
+    // Update alert rule
+    if (req.url.startsWith('/api/alerts/') && req.method === 'PATCH') {
+      const ruleId = req.url.split('/').pop();
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const rule = alertRules.find(r => r.id === ruleId);
+          if (!rule) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Rule not found' }));
+            return;
+          }
+          if (data.enabled !== undefined) rule.enabled = data.enabled;
+          if (data.threshold !== undefined) rule.threshold = data.threshold;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, rule }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+    
+    // Reset alert rule
+    if (req.url.startsWith('/api/alerts/') && req.method === 'DELETE') {
+      const ruleId = req.url.split('/').pop();
+      const success = resetAlertRule(ruleId);
+      res.writeHead(success ? 200 : 404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success, ruleId }));
+      return;
+    }
+    
+    // Record E2E result
+    if (req.url === '/api/alerts/e2e' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          recordE2EResult(data.status || 'unknown');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET: Return available alert endpoints
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      endpoints: [
+        'GET /api/alerts - Get all rules and history',
+        'POST /api/alerts/check - Check alert rules manually',
+        'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
+        'DELETE /api/alerts/:id - Reset triggered alert',
+        'POST /api/alerts/e2e - Record E2E test result'
+      ]
+    }));
   } else {
     res.writeHead(404);
     res.end('Not Found');
   }
 });
+
+// Alert Rules Engine
+const alertRules = [
+  { id: 'e2e-fail-3', name: 'E2E 連續失敗 3 次', type: 'e2e_failure', threshold: 3, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'agent-offline-5min', name: 'Agent 離線 5 分鐘', type: 'agent_offline', threshold: 5 * 60 * 1000, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null }
+];
+const e2eResults = [];
+const MAX_E2E_RESULTS = 100;
+const alertHistory = [];
+const MAX_ALERT_HISTORY = 50;
+
+function checkAlertRules() {
+  return new Promise((resolve) => {
+    const triggeredAlerts = [];
+    const e2eRule = alertRules.find(r => r.id === 'e2e-fail-3');
+    if (e2eRule && e2eRule.enabled) {
+      const recentFailures = e2eResults.filter(r => r.status === 'failure').slice(-e2eRule.threshold);
+      if (recentFailures.length >= e2eRule.threshold && !e2eRule.triggered) {
+        e2eRule.triggered = true;
+        e2eRule.lastTriggered = new Date().toISOString();
+        triggeredAlerts.push({ rule: e2eRule, message: `E2E 測試連續失敗 ${e2eRule.threshold} 次`, severity: 'critical' });
+      }
+    }
+    const offlineRule = alertRules.find(r => r.id === 'agent-offline-5min');
+    if (offlineRule && offlineRule.enabled) {
+      getAgentStatus().then(agentStatusList => {
+        const offlineAgents = agentStatusList.filter(a => a.status === 'offline');
+        offlineAgents.forEach(agent => {
+          if (agent.lastActive) {
+            const offlineMs = Date.now() - new Date(agent.lastActive).getTime();
+            if (offlineMs >= offlineRule.threshold && !offlineRule.triggered) {
+              offlineRule.triggered = true;
+              offlineRule.lastTriggered = new Date().toISOString();
+              triggeredAlerts.push({ rule: offlineRule, message: `Agent ${agent.name} (${agent.id}) 已離線超過 5 分鐘`, severity: 'warning', agent: agent.id });
+            }
+          }
+        });
+        triggeredAlerts.forEach(alert => {
+          alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
+          if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
+        });
+        resolve(triggeredAlerts);
+      });
+    } else {
+      triggeredAlerts.forEach(alert => {
+        alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
+        if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
+      });
+      resolve(triggeredAlerts);
+    }
+  });
+}
+
+function recordE2EResult(status) {
+  e2eResults.push({ status, timestamp: new Date().toISOString() });
+  if (e2eResults.length > MAX_E2E_RESULTS) e2eResults.shift();
+}
+
+function resetAlertRule(ruleId) {
+  const rule = alertRules.find(r => r.id === ruleId);
+  if (rule) { rule.triggered = false; return true; }
+  return false;
+}
 
 server.listen(PORT, () => {
   console.log(`OpenClaw Dashboard API Server running at http://localhost:${PORT}`);
