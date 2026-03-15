@@ -1352,8 +1352,8 @@ const MAX_E2E_RESULTS = 100;
 const alertHistory = [];
 const MAX_ALERT_HISTORY = 50;
 
-function checkAlertRules() {
-  return new Promise((resolve) => {
+async function checkAlertRules() {
+  return new Promise(async (resolve) => {
     const triggeredAlerts = [];
     const e2eRule = alertRules.find(r => r.id === 'e2e-fail-3');
     if (e2eRule && e2eRule.enabled) {
