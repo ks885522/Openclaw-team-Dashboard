@@ -1218,6 +1218,79 @@ const server = http.createServer((req, res) => {
       return;
     }
     
+    // Webhook Configuration Endpoint
+    if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      // 隱藏敏感資訊
+      const safeConfigs = {};
+      for (const [channel, config] of Object.entries(webhookConfigs)) {
+        safeConfigs[channel] = {
+          enabled: config.enabled,
+          url: config.url ? '***configured***' : '',
+          channel: config.channel
+        };
+      }
+      res.end(JSON.stringify(safeConfigs));
+      return;
+    }
+
+    // Update Webhook Configuration
+    if (req.url.startsWith('/api/webhooks/config') && req.method === 'PUT') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const { channel, url, enabled, channel: channelName } = data;
+          
+          if (!channel || !['slack', 'discord', 'feishu'].includes(channel)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid channel. Use: slack, discord, or feishu' }));
+            return;
+          }
+          
+          webhookConfigs[channel] = {
+            enabled: enabled !== undefined ? enabled : webhookConfigs[channel].enabled,
+            url: url || webhookConfigs[channel].url,
+            channel: channelName !== undefined ? channelName : webhookConfigs[channel].channel
+          };
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, channel }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // Send Webhook Notification
+    if (req.url.startsWith('/api/webhooks/send') && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { channel, message, title, color, fields } = data;
+          
+          if (!channel || !message) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required fields: channel, message' }));
+            return;
+          }
+          
+          const result = await sendWebhookNotification(channel, message, { title, color, fields });
+          res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     // GET: Return available alert endpoints
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -1286,6 +1359,69 @@ function checkAlertRules() {
       resolve(triggeredAlerts);
     }
   });
+}
+
+// Webhook Configuration Storage
+const webhookConfigs = {
+  slack: { enabled: false, url: '', channel: '' },
+  discord: { enabled: false, url: '', channel: '' },
+  feishu: { enabled: false, url: '' }
+};
+
+/**
+ * Send webhook notification to specified channel
+ */
+async function sendWebhookNotification(channel, message, options = {}) {
+  const config = webhookConfigs[channel];
+  if (!config || !config.enabled || !config.url) {
+    return { success: false, error: 'Webhook not configured or disabled' };
+  }
+
+  let payload;
+  const { title, color, fields } = options;
+
+  if (channel === 'slack') {
+    payload = {
+      text: message,
+      attachments: [{
+        color: color || '#36a64f',
+        fields: fields ? fields.map(f => ({ title: f.title, value: f.value, short: f.short })) : []
+      }]
+    };
+  } else if (channel === 'discord') {
+    payload = {
+      content: message,
+      embeds: [{
+        title: title || 'OpenClaw Notification',
+        color: parseInt(color?.replace('#', '') || '36a64f', 16),
+        fields: fields ? fields.map(f => ({ name: f.title, value: f.value, inline: f.short })) : [],
+        timestamp: new Date().toISOString()
+      }]
+    };
+  } else if (channel === 'feishu') {
+    // 飛書 Webhook 使用 Card 訊息格式
+    payload = {
+      msg_type: 'interactive',
+      card: {
+        config: { wide_screen_mode: true },
+        header: { title: { tag: 'plain_text', content: title || 'OpenClaw Notification' }, color: color || 'green' },
+        elements: [
+          { tag: 'markdown', content: message }
+        ]
+      }
+    };
+  }
+
+  try {
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return { success: response.ok, status: response.status };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
 
 function recordE2EResult(status) {
