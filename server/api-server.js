@@ -722,6 +722,83 @@ const server = http.createServer((req, res) => {
       }
     });
     return;
+  } else if (req.url.startsWith('/api/github/repos/') && req.method === 'POST') {
+    // GitHub API proxy for creating issues
+    // Format: /api/github/repos/{owner}/{repo}/issues
+    // Or: /api/github/repos/{owner}/{repo}/issues/{issueNumber}/comments
+    const urlMatch = req.url.match(/^\/api\/github\/repos\/([^/]+)\/([^/]+)\/(.+)$/);
+    
+    if (!urlMatch) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid URL format. Use /api/github/repos/{owner}/{repo}/issues' }));
+      return;
+    }
+    
+    const [, owner, repo, endpoint] = urlMatch;
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    
+    if (!GITHUB_TOKEN) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'GITHUB_TOKEN not configured on server' }));
+      return;
+    }
+    
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        let githubApiUrl, method, requestBody;
+        
+        if (endpoint === 'issues') {
+          // Create new issue
+          githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/issues`;
+          method = 'POST';
+          requestBody = {
+            title: data.title,
+            body: data.body,
+            labels: data.labels || [],
+            assignee: data.assignee
+          };
+        } else if (endpoint.match(/^issues\/\d+\/comments$/)) {
+          // Add comment to issue
+          const issueNumber = endpoint.match(/issues\/(\d+)\/comments/)[1];
+          githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+          method = 'POST';
+          requestBody = { body: data.body };
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unsupported endpoint. Use /issues or /issues/{number}/comments' }));
+          return;
+        }
+        
+        const response = await fetch(githubApiUrl, {
+          method,
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          res.writeHead(response.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: result.message || 'GitHub API error', details: result }));
+          return;
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        console.error('[GitHub API Proxy] Error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
   } else if (req.url === '/api/scores' && req.method === 'POST') {
     // Manual score update (for testing)
     let body = '';
