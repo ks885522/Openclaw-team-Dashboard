@@ -16,7 +16,23 @@ export type AgentAction =
   | 'message_sent'
   | 'tool_called'
   | 'error_occurred'
-  | 'heartbeat';
+  | 'heartbeat'
+  | 'branch_created'
+  | 'branch_deleted'
+  | 'pr_created'
+  | 'pr_merged'
+  | 'pr_closed'
+  | 'commit_pushed'
+  | 'issue_created'
+  | 'issue_closed'
+  | 'code_review'
+  | 'build_started'
+  | 'build_completed'
+  | 'build_failed'
+  | 'test_executed'
+  | 'deployment_started'
+  | 'deployment_completed'
+  | 'deployment_failed';
 
 export type ActionOutcome = 
   | 'success'

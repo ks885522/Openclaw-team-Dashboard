@@ -16,6 +16,16 @@
  *   
  *   // Enable real-time logging to API server
  *   agentLogger.setRealtimeMode(true, 'http://localhost:3001');
+ *   
+ *   // Git operations
+ *   agentLogger.branchCreated('engineering', 'feature/123-new-feature');
+ *   agentLogger.prCreated('engineering', 'PR #123', 123);
+ *   agentLogger.prMerged('engineering', 'PR #123', 123);
+ *   
+ *   // Build & Deploy
+ *   agentLogger.buildStarted('engineering', 'main');
+ *   agentLogger.buildCompleted('engineering', 'main');
+ *   agentLogger.deploymentCompleted('engineering', 'production');
  */
 
 import * as fs from 'fs';
@@ -32,6 +42,15 @@ interface LogOptions {
   duration_ms?: number;
   error_message?: string;
   realtime?: boolean; // Override realtime setting for this log
+  // Git related
+  branch_name?: string;
+  pr_number?: number;
+  pr_title?: string;
+  commit_sha?: string;
+  // Build/Deploy related
+  build_id?: string;
+  environment?: string;
+  version?: string;
 }
 
 // Configuration for real-time mode
@@ -90,10 +109,21 @@ async function sendToApi(log: AgentActivityLog): Promise<boolean> {
 function formatForConsole(log: AgentActivityLog): string {
   const statusEmoji = log.outcome === 'success' ? '✅' : log.outcome === 'failure' ? '❌' : '⏳';
   const taskInfo = log.task_id ? `[Task #${log.task_id}]` : '';
+  const branchInfo = log.metadata?.branch_name ? `[${log.metadata.branch_name}]` : '';
+  const prInfo = log.metadata?.pr_number ? `[PR #${log.metadata.pr_number}]` : '';
   const durationInfo = log.duration_ms ? `(${log.duration_ms}ms)` : '';
   
-  return `${statusEmoji} [${log.agent_id}] ${log.action} ${taskInfo} ${durationInfo}`.trim();
+  return `${statusEmoji} [${log.agent_id}] ${log.action} ${taskInfo} ${branchInfo} ${prInfo} ${durationInfo}`.trim();
 }
+
+type LogFilter = {
+  agent_id?: AgentId;
+  action?: AgentAction;
+  outcome?: ActionOutcome;
+  task_id?: string;
+  startTime?: Date;
+  endTime?: Date;
+};
 
 /**
  * Agent Logger - Centralized logging for all Agents
@@ -131,8 +161,21 @@ export const agentLogger = {
       action,
       timestamp: new Date().toISOString(),
       outcome,
-      ...options
+      task_id: options?.task_id,
+      session_id: options?.session_id,
+      duration_ms: options?.duration_ms,
+      error_message: options?.error_message,
+      metadata: options?.metadata || {}
     };
+
+    // Add optional metadata fields
+    if (options?.branch_name) logEntry.metadata!.branch_name = options.branch_name;
+    if (options?.pr_number) logEntry.metadata!.pr_number = options.pr_number;
+    if (options?.pr_title) logEntry.metadata!.pr_title = options.pr_title;
+    if (options?.commit_sha) logEntry.metadata!.commit_sha = options.commit_sha;
+    if (options?.build_id) logEntry.metadata!.build_id = options.build_id;
+    if (options?.environment) logEntry.metadata!.environment = options.environment;
+    if (options?.version) logEntry.metadata!.version = options.version;
 
     // Write to console
     console.log(`[Agent:${agentId}]`, formatForConsole(logEntry));
@@ -149,6 +192,8 @@ export const agentLogger = {
     return logEntry;
   },
 
+  // ========== Session Logging ==========
+  
   /**
    * Log session start
    */
@@ -162,6 +207,8 @@ export const agentLogger = {
   sessionEnd(agentId: AgentId, outcome: ActionOutcome, sessionId?: string): AgentActivityLog {
     return this.log(agentId, 'session_end', outcome, { session_id: sessionId });
   },
+
+  // ========== Task Logging ==========
 
   /**
    * Log task assignment
@@ -191,6 +238,180 @@ export const agentLogger = {
     });
   },
 
+  // ========== Git Operations ==========
+
+  /**
+   * Log branch creation
+   */
+  branchCreated(agentId: AgentId, branchName: string, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'branch_created', 'success', { 
+      task_id: taskId,
+      branch_name: branchName 
+    });
+  },
+
+  /**
+   * Log branch deletion
+   */
+  branchDeleted(agentId: AgentId, branchName: string, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'branch_deleted', 'success', { 
+      task_id: taskId,
+      branch_name: branchName 
+    });
+  },
+
+  /**
+   * Log PR creation
+   */
+  prCreated(agentId: AgentId, prTitle: string, prNumber: number, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'pr_created', 'success', { 
+      task_id: taskId,
+      pr_title: prTitle,
+      pr_number: prNumber
+    });
+  },
+
+  /**
+   * Log PR merge
+   */
+  prMerged(agentId: AgentId, prTitle: string, prNumber: number, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'pr_merged', 'success', { 
+      task_id: taskId,
+      pr_title: prTitle,
+      pr_number: prNumber
+    });
+  },
+
+  /**
+   * Log PR closure
+   */
+  prClosed(agentId: AgentId, prTitle: string, prNumber: number, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'pr_closed', 'cancelled', { 
+      task_id: taskId,
+      pr_title: prTitle,
+      pr_number: prNumber
+    });
+  },
+
+  /**
+   * Log commit push
+   */
+  commitPushed(agentId: AgentId, commitSha: string, taskId?: string): AgentActivityLog {
+    return this.log(agentId, 'commit_pushed', 'success', { 
+      task_id: taskId,
+      commit_sha: commitSha
+    });
+  },
+
+  /**
+   * Log code review
+   */
+  codeReview(agentId: AgentId, outcome: ActionOutcome, taskId?: string, metadata?: Record<string, unknown>): AgentActivityLog {
+    return this.log(agentId, 'code_review', outcome, { 
+      task_id: taskId,
+      metadata 
+    });
+  },
+
+  // ========== Build & Deploy ==========
+
+  /**
+   * Log build start
+   */
+  buildStarted(agentId: AgentId, branchName: string, buildId?: string): AgentActivityLog {
+    return this.log(agentId, 'build_started', 'pending', { 
+      branch_name: branchName,
+      build_id: buildId
+    });
+  },
+
+  /**
+   * Log build completion
+   */
+  buildCompleted(agentId: AgentId, branchName: string, buildId?: string, durationMs?: number): AgentActivityLog {
+    return this.log(agentId, 'build_completed', 'success', { 
+      branch_name: branchName,
+      build_id: buildId,
+      duration_ms: durationMs
+    });
+  },
+
+  /**
+   * Log build failure
+   */
+  buildFailed(agentId: AgentId, branchName: string, errorMessage: string, buildId?: string): AgentActivityLog {
+    return this.log(agentId, 'build_failed', 'failure', { 
+      branch_name: branchName,
+      build_id: buildId,
+      error_message: errorMessage
+    });
+  },
+
+  /**
+   * Log test execution
+   */
+  testExecuted(agentId: AgentId, outcome: ActionOutcome, durationMs?: number, metadata?: Record<string, unknown>): AgentActivityLog {
+    return this.log(agentId, 'test_executed', outcome, { 
+      duration_ms: durationMs,
+      metadata
+    });
+  },
+
+  /**
+   * Log deployment start
+   */
+  deploymentStarted(agentId: AgentId, environment: string, version?: string): AgentActivityLog {
+    return this.log(agentId, 'deployment_started', 'pending', { 
+      environment,
+      version
+    });
+  },
+
+  /**
+   * Log deployment completion
+   */
+  deploymentCompleted(agentId: AgentId, environment: string, version?: string): AgentActivityLog {
+    return this.log(agentId, 'deployment_completed', 'success', { 
+      environment,
+      version
+    });
+  },
+
+  /**
+   * Log deployment failure
+   */
+  deploymentFailed(agentId: AgentId, environment: string, errorMessage: string, version?: string): AgentActivityLog {
+    return this.log(agentId, 'deployment_failed', 'failure', { 
+      environment,
+      version,
+      error_message: errorMessage
+    });
+  },
+
+  // ========== Issue Tracking ==========
+
+  /**
+   * Log issue creation
+   */
+  issueCreated(agentId: AgentId, issueNumber: number, title: string): AgentActivityLog {
+    return this.log(agentId, 'issue_created', 'success', { 
+      task_id: String(issueNumber),
+      metadata: { issue_title: title }
+    });
+  },
+
+  /**
+   * Log issue closure
+   */
+  issueClosed(agentId: AgentId, issueNumber: number, title: string): AgentActivityLog {
+    return this.log(agentId, 'issue_closed', 'success', { 
+      task_id: String(issueNumber),
+      metadata: { issue_title: title }
+    });
+  },
+
+  // ========== Error & Heartbeat ==========
+
   /**
    * Log an error
    */
@@ -207,6 +428,8 @@ export const agentLogger = {
   heartbeat(agentId: AgentId, metadata?: Record<string, unknown>): AgentActivityLog {
     return this.log(agentId, 'heartbeat', 'success', { metadata });
   },
+
+  // ========== Query Methods ==========
 
   /**
    * Read all logs from the log file
@@ -237,7 +460,52 @@ export const agentLogger = {
    */
   getAgentLogs(agentId: AgentId): AgentActivityLog[] {
     return this.getLogs().filter(log => log.agent_id === agentId);
+  },
+
+  /**
+   * Filter logs by criteria
+   */
+  filterLogs(filter: LogFilter): AgentActivityLog[] {
+    return this.getLogs().filter(log => {
+      if (filter.agent_id && log.agent_id !== filter.agent_id) return false;
+      if (filter.action && log.action !== filter.action) return false;
+      if (filter.outcome && log.outcome !== filter.outcome) return false;
+      if (filter.task_id && log.task_id !== filter.task_id) return false;
+      if (filter.startTime) {
+        const logTime = new Date(log.timestamp);
+        if (logTime < filter.startTime) return false;
+      }
+      if (filter.endTime) {
+        const logTime = new Date(log.timestamp);
+        if (logTime > filter.endTime) return false;
+      }
+      return true;
+    });
+  },
+
+  /**
+   * Get recent logs (last N entries)
+   */
+  getRecentLogs(count: number = 50): AgentActivityLog[] {
+    const logs = this.getLogs();
+    return logs.slice(-count);
+  },
+
+  /**
+   * Get logs since a specific time
+   */
+  getLogsSince(date: Date): AgentActivityLog[] {
+    return this.filterLogs({ startTime: date });
+  },
+
+  /**
+   * Clear all logs (use with caution!)
+   */
+  clearLogs(): void {
+    ensureLogDir();
+    if (fs.existsSync(AGENT_LOG_FILE)) {
+      fs.unlinkSync(AGENT_LOG_FILE);
+      console.log('[AgentLogger] All logs cleared');
+    }
   }
 };
-
-export default agentLogger;
