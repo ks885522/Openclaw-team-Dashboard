@@ -10,7 +10,7 @@ permissions:
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'Epic') && contains(github.event.issue.labels.*.name, 'Done')
+    if: contains(github.event.issue.labels.*.name, 'Epic')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
