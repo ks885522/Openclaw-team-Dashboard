@@ -1,28 +1,40 @@
-# Deployment Log - 2026-03-16
+# Dashboard 部署記錄
 
-## Task: #123 部署：Dashboard 服務部署
+## 部署時間
+2026-03-16
 
-### 執行情況
+## 服務狀態
 
-**時間:** 2026-03-16 08:53 AM (Asia/Shanghai)
+| 服務 | Port | 狀態 |
+|------|------|------|
+| Dashboard Frontend (Vite Dev) | 3000 | ✅ 運行中 |
+| API Server | 28081 | ✅ 運行中 |
+| Vite Preview (Stable) | 28080 | ✅ 運行中 |
 
-**分支:** feature/123-dashboard-deployment
+## 存取網址
+- 本地開髮環境：`http://localhost:3000`
+- 穩定預覽環境：`http://localhost:28080`
+- API 服務：`http://localhost:28081`
 
-**執行動作:**
-1. ✅ 確認依賴 (#121, #122) 已完成
-2. ✅ 執行 `npm run build` - 構建成功
-   - dist/index.html: 0.47 kB
-   - dist/assets/index-CU8TSSVo.css: 36.01 kB
-   - dist/assets/index-DV-LPNRz.js: 214.45 kB
-3. ✅ 執行 `bash scripts/stable-server.sh start` - 服務上線
-4. ✅ 驗證 HTTP 200 響應
+## 啟動指令
+```bash
+# Frontend (Dev)
+cd repo && npm run dev -- --port 3000
 
-**部署結果:**
-- 服務名稱: openclaw-dashboard-stable
+# Frontend (Preview/Production)
+cd repo && npm run build && npm run preview -- --port 28080
+
+# API Server
+cd repo && node server/api-server.js
+```
+
+---
+
+## 歷史部署記錄
+
+### 2026-03-16 (PR #157)
+- 分支: feature/123-dashboard-deployment
+- 執行 `npm run build` - 構建成功
+- 執行 `bash scripts/stable-server.sh start` - 服務上線
 - 端口: 28080
 - 狀態: online
-- URL: http://localhost:28080
-
-### 備註
-- 這是一個重新部署任務，服務之前已存在於 PM2 中
-- 本次執行 restart 來加載最新的 build 產物
