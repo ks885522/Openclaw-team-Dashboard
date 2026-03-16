@@ -44,7 +44,10 @@ test.describe('Dashboard E2E Tests', () => {
       !e.includes('404') && // API not found
       !e.includes('Failed to fetch') && // API fetch errors
       !e.includes('API error') &&
-      !e.includes('SyntaxError') // JSON parse errors from API
+      !e.includes('SyntaxError') && // JSON parse errors from API
+      !e.includes('[Agent Status SSE] Error') && // SSE connection errors in CI
+      !e.includes('ECONNREFUSED') && // Connection refused errors
+      !e.includes('http proxy error') // Vite proxy errors
     );
     
     expect(criticalErrors).toHaveLength(0);
