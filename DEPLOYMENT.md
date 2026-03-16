@@ -7,9 +7,8 @@
 
 | 服務 | Port | 狀態 |
 |------|------|------|
-| Dashboard Frontend (Vite Dev) | 3000 | ✅ 運行中 |
-| API Server | 28081 | ✅ 運行中 |
-| Vite Preview (Stable) | 28080 | ✅ 運行中 |
+| Dashboard Frontend (Vite Dev) | 5173 | ✅ 運行中 |
+| Test Server | 3001 | ✅ 運行中 |
 
 ## 存取網址
 - 本地開髮環境：`http://localhost:3000`
