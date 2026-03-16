@@ -1,0 +1,26 @@
+name: Auto Tagging
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'Epic') && contains(github.event.issue.labels.*.name, 'Done')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create git tag
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          TAG_NAME="epic-${ISSUE_NUMBER}-${TIMESTAMP}"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git tag -a "$TAG_NAME" -m "Epic #$ISSUE_NUMBER closed"
+          git push origin "$TAG_NAME"
