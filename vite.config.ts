@@ -15,6 +15,18 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/api/performance': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/scores': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/agent': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })
