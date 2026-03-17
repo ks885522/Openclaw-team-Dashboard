@@ -3,12 +3,13 @@
 ## 部署時間
 2026-03-16
 
-## 服務狀態
+## 服務狀態 (2026-03-17 17:18)
 
 | 服務 | Port | 狀態 |
 |------|------|------|
-| Dashboard Frontend (Vite Dev) | 5173 | ✅ 運行中 |
-| Test Server | 3001 | ✅ 運行中 |
+| Dashboard Frontend (Vite Dev) | 5173 | ❌ 未運行 |
+| Test Server | 3001 | ❌ 未運行 |
+| 穩定預覽環境 | 28080 | ✅ 運行中 |
 
 ## 存取網址
 - 本地開髮環境：`http://localhost:3000`
