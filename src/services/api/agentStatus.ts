@@ -24,12 +24,28 @@ const AGENT_MEMBERS = [
 
 // 從 sessions_list API 回應映射狀態
 function mapSessionToStatus(session: any): AgentStatus['status'] {
-  if (!session || session.activeMinutes === undefined) {
+  if (!session) {
     return 'offline'
   }
-  // 有最近活動的 session 視為 idle 或 busy
-  // 這是簡單的判斷邏輯，實際應根據 session 內容更精確判斷
+  
+  // 檢查 session key 中是否包含有效的 agent ID
+  // key 格式: agent:engineering:cron:xxx 或 agent:requirements:session:xxx
+  const key = session.key || ''
+  if (!key.startsWith('agent:')) {
+    return 'offline'
+  }
+  
+  // 有 session key 就視為 idle（Agent 存在但當前沒有執行任務）
+  // 實際的 "忙碌" 狀態應該由 run: 子 session 來判斷，這裡簡化為 idle
   return 'idle'
+}
+
+// 從 session key 提取 agent ID
+function extractAgentId(sessionKey: string): string | null {
+  if (!sessionKey) return null
+  // key 格式: agent:engineering:cron:xxx → engineering
+  const match = sessionKey.match(/^agent:([^:]+):/)
+  return match ? match[1] : null
 }
 
 // 獲取所有 Agent 的狀態
@@ -46,7 +62,11 @@ export async function fetchAgentStatuses(): Promise<AgentStatus[]> {
     
     // 將 sessions 映射到 Agent 狀態
     return AGENT_MEMBERS.map(member => {
-      const session = sessions.find((s: any) => s.label === member.id || s.agentId === member.id)
+      // 從 sessions key 中查找匹配的 agent
+      const session = sessions.find((s: any) => {
+        const sessionAgentId = extractAgentId(s.key)
+        return sessionAgentId === member.id
+      })
       
       return {
         id: member.id,
