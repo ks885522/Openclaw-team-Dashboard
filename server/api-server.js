@@ -1550,6 +1550,28 @@ const server = http.createServer((req, res) => {
       return;
     }
     
+    // Manual PR merge review check
+    if (req.url === '/api/alerts/pr-no-review' && req.method === 'GET') {
+      const noReviewRule = alertRules.find(r => r.id === 'pr-merged-without-review');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        rule: noReviewRule,
+        history: prMergeHistory
+      }));
+      return;
+    }
+    
+    // Reset PR no-review alert
+    if (req.url === '/api/alerts/pr-no-review/reset' && req.method === 'POST') {
+      const noReviewRule = alertRules.find(r => r.id === 'pr-merged-without-review');
+      if (noReviewRule) {
+        noReviewRule.triggered = false;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ reset: true }));
+      return;
+    }
+    
     // Update alert rule
     if (req.url.startsWith('/api/alerts/') && req.method === 'PATCH') {
       const ruleId = req.url.split('/').pop();
@@ -1611,7 +1633,9 @@ const server = http.createServer((req, res) => {
         'POST /api/alerts/check - Check alert rules manually',
         'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
         'DELETE /api/alerts/:id - Reset triggered alert',
-        'POST /api/alerts/e2e - Record E2E test result'
+        'POST /api/alerts/e2e - Record E2E test result',
+        'GET /api/alerts/pr-no-review - Get PR no-review status and history',
+        'POST /api/alerts/pr-no-review/reset - Reset PR no-review alert'
       ]
     }));
   } else if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
@@ -1688,12 +1712,82 @@ const server = http.createServer((req, res) => {
 const alertRules = [
   { id: 'e2e-fail-3', name: 'E2E 連續失敗 3 次', type: 'e2e_failure', threshold: 3, enabled: true, triggered: false, lastTriggered: null },
   { id: 'agent-offline-5min', name: 'Agent 離線 5 分鐘', type: 'agent_offline', threshold: 5 * 60 * 1000, enabled: true, triggered: false, lastTriggered: null },
-  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null }
+  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'pr-merged-without-review', name: 'PR 未經 Review 直接 Merge', type: 'pr_no_review', threshold: 1, enabled: true, triggered: false, lastTriggered: null, description: '檢測 PR 是否在沒有 Review 批準的情況下被 Merge' }
 ];
 const e2eResults = [];
 const MAX_E2E_RESULTS = 100;
 const alertHistory = [];
+
+// Track PR merges to detect violations (in-memory, in production use database)
+const prMergeHistory = [];
+const MAX_PR_HISTORY = 100;
 const MAX_ALERT_HISTORY = 50;
+
+/**
+ * Check for PRs merged without review and trigger alerts
+ */
+async function checkPRNoReviewAlert(triggeredAlerts) {
+  const noReviewRule = alertRules.find(r => r.id === 'pr-merged-without-review');
+  if (!noReviewRule || !noReviewRule.enabled) return;
+  
+  try {
+    // Get recently merged PRs (last 10)
+    const mergedPRs = execSync(
+      `gh pr list --state merged --limit 10 --json number,title,mergedAt,url`,
+      { encoding: 'utf-8' }
+    );
+    const prList = JSON.parse(mergedPRs);
+    
+    for (const pr of prList) {
+      // Skip if already checked
+      const alreadyChecked = prMergeHistory.find(p => p.prNumber === pr.number && p.checked);
+      if (alreadyChecked) continue;
+      
+      // Get PR reviews
+      const reviews = execSync(
+        `gh pr view ${pr.number} --json reviews`,
+        { encoding: 'utf-8' }
+      );
+      const prData = JSON.parse(reviews);
+      
+      // Check if PR has approved reviews
+      const hasApprovedReview = prData.reviews && prData.reviews.some(r => r.state === 'APPROVED');
+      
+      // Record in history
+      const prRecord = {
+        prNumber: pr.number,
+        prTitle: pr.title,
+        mergedAt: pr.mergedAt,
+        hasApprovedReview,
+        checked: true,
+        timestamp: new Date().toISOString()
+      };
+      
+      prMergeHistory.unshift(prRecord);
+      if (prMergeHistory.length > MAX_PR_HISTORY) prMergeHistory.pop();
+      
+      // Trigger alert if merged without review
+      if (!hasApprovedReview && !noReviewRule.triggered) {
+        noReviewRule.triggered = true;
+        noReviewRule.lastTriggered = new Date().toISOString();
+        
+        triggeredAlerts.push({
+          rule: noReviewRule,
+          message: `⚠️ PR #${pr.number} "${pr.title}" 未經 Review 直接 Merge！`,
+          severity: 'critical',
+          pr: {
+            number: pr.number,
+            title: pr.title,
+            url: pr.url
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[PR-NoReview-Alert] Error checking PRs:', error.message);
+  }
+}
 
 async function checkAlertRules() {
   return new Promise(async (resolve) => {
@@ -1707,6 +1801,10 @@ async function checkAlertRules() {
         triggeredAlerts.push({ rule: e2eRule, message: `E2E 測試連續失敗 ${e2eRule.threshold} 次`, severity: 'critical' });
       }
     }
+    
+    // Check for PR merged without review
+    await checkPRNoReviewAlert(triggeredAlerts);
+    
     const offlineRule = alertRules.find(r => r.id === 'agent-offline-5min');
     if (offlineRule && offlineRule.enabled) {
       getAgentStatus().then(async (agentStatusList) => {
