@@ -10,7 +10,7 @@ import { PerformanceDashboard } from './components/PerformanceDashboard'
 import { ScoreLeaderboard } from './components/ScoreLeaderboard'
 import { PromptInjectionPanel } from './components/PromptInjection'
 import { ActivityTimeline } from './components/ActivityTimeline'
-import { WorkflowTopology } from './components/WorkflowTopology'
+import { TaskFlowTopology } from './components/TaskFlowTopology'
 import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
 import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
@@ -675,7 +675,7 @@ function App() {
         ) : activeTab === 'scores' ? (
           <ScoreLeaderboard />
         ) : activeTab === 'topology' ? (
-          <WorkflowTopology />
+          <TaskFlowTopology />
         ) : activeTab === 'timeline' ? (
           <ActivityTimeline />
         ) : activeTab === 'alerts' ? (
