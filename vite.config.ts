@@ -27,6 +27,10 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/api/dod-compliance': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

@@ -1,6 +1,6 @@
 // DoD 合規率 API 服務
 
-const API_BASE = 'http://localhost:18789';
+const API_BASE = '';
 
 export interface DoDCompliancePeriod {
   since: string;
