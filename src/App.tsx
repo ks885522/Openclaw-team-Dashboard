@@ -14,6 +14,7 @@ import { WorkflowTopology } from './components/WorkflowTopology'
 import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
 import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
+import { EvidenceComparison } from './components/EvidenceComparison'
 
 // 項目類型
 interface Project {
@@ -56,7 +57,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -433,6 +434,12 @@ function App() {
             >
               📋 DoD 合規
             </button>
+            <button
+              className={`nav-tab ${activeTab === 'evidence' ? 'active' : ''}`}
+              onClick={() => setActiveTab('evidence')}
+            >
+              🔍 證據對比
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -670,6 +677,15 @@ function App() {
           <ThinkingChainDisplay maxHeight="calc(100vh - 140px)" />
         ) : activeTab === 'dod' ? (
           <DoDComplianceDashboard />
+        ) : activeTab === 'evidence' ? (
+          <div style={{ padding: '20px' }}>
+            <EvidenceComparison
+              devScreenshotUrl="https://placehold.co/800x600/10B981/FFFFFF/png?text=開發自測截圖"
+              qaScreenshotUrl="https://placehold.co/800x600/3B82F6/FFFFFF/png?text=QA+實機截圖"
+              devLabel="開發自測截圖"
+              qaLabel="QA 實機截圖"
+            />
+          </div>
         ) : (
           <PerformanceDashboard />
         )}
