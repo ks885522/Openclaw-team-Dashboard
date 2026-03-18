@@ -3,16 +3,16 @@
 ## 部署時間
 2026-03-16
 
-## 服務狀態 (2026-03-18 04:12)
+## 服務狀態 (2026-03-18 12:20)
 
 | 服務 | Port | 狀態 |
 |------|------|------|
-| Dashboard Frontend (Vite Dev) | 3000 | ✅ 運行中 (engineering) |
+| Dashboard Frontend (Vite Dev) | 3000 | ✅ 運行中 |
 | 穩定預覽環境 | 28080 | ✅ 運行中 |
 | API 服務 | 3001 | ✅ 運行中 |
 | Art-Design Dev | 3003 | ✅ 運行中 |
 | Feature-Review Dev | 3004 | ✅ 運行中 |
-| 其他環境 | 3002 | ✅ 運行中 |
+| Engineering Dev | 3002 | ✅ 運行中 |
 
 ## 存取網址
 - 本地開發環境：`http://localhost:3000`
