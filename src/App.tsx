@@ -13,6 +13,7 @@ import { ActivityTimeline } from './components/ActivityTimeline'
 import { WorkflowTopology } from './components/WorkflowTopology'
 import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
 import AlertHistory from './components/AlertHistory'
+import { EvidenceComparison } from './components/EvidenceComparison'
 
 // 項目類型
 interface Project {
@@ -55,7 +56,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'evidence'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -426,6 +427,12 @@ function App() {
             >
               🧠 思考鏈
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'evidence' ? 'active' : ''}`}
+              onClick={() => setActiveTab('evidence')}
+            >
+              🔍 證據對比
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -661,6 +668,15 @@ function App() {
           <AlertHistory maxHeight="calc(100vh - 140px)" />
         ) : activeTab === 'thinking' ? (
           <ThinkingChainDisplay maxHeight="calc(100vh - 140px)" />
+        ) : activeTab === 'evidence' ? (
+          <div style={{ padding: '20px' }}>
+            <EvidenceComparison
+              devScreenshotUrl="https://placehold.co/800x600/10B981/FFFFFF/png?text=開發自測截圖"
+              qaScreenshotUrl="https://placehold.co/800x600/3B82F6/FFFFFF/png?text=QA+實機截圖"
+              devLabel="開發自測截圖"
+              qaLabel="QA 實機截圖"
+            />
+          </div>
         ) : (
           <PerformanceDashboard />
         )}
