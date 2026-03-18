@@ -1,5 +1,5 @@
 // Score API service
-const API_BASE = 'http://localhost:3001';
+const API_BASE = 'http://localhost:18789';
 
 export interface ScoreData {
   scores: Record<string, number>;

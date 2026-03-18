@@ -3,7 +3,7 @@
 # Usage: ./kill-server.sh [port]
 # Examples:
 #   ./kill-server.sh      # Kill all dev servers
-#   ./kill-server.sh 3001 # Kill server on port 3001
+#   ./kill-server.sh 18789 # Kill server on port 18789
 
 set -e
 
@@ -36,7 +36,7 @@ if [ -n "$PORT" ]; then
     kill_port $PORT
 else
     # Kill all common dev ports
-    for p in 5173 3000 3001 3002 3003; do
+    for p in 5173 3000 18789 3002 3003; do
         kill_port $p
     done
     

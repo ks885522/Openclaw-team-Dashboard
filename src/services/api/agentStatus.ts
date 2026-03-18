@@ -131,7 +131,7 @@ export function createStatusSSEUpdater(
   const connect = () => {
     // 從當前主機獲取 API URL
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
-    const host = window.location.host || 'localhost:3001'
+    const host = window.location.host || 'localhost:18789'
     const sseUrl = `${protocol}//${host}/api/agent-status/stream`
     
     eventSource = new EventSource(sseUrl)

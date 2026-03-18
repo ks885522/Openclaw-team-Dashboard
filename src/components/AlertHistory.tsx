@@ -34,7 +34,7 @@ const AlertHistory: React.FC<AlertHistoryProps> = ({ maxHeight = '400px' }) => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/alerts');
+      const response = await fetch('http://localhost:18789/api/alerts');
       const data = await response.json();
       if (data.history) {
         setAlerts(data.history.map((alert: any, idx: number) => ({
