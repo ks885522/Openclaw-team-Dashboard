@@ -1667,6 +1667,46 @@ const server = http.createServer((req, res) => {
       return;
     }
     
+    // Get flow skip status (recently merged PRs without review)
+    if (req.url === '/api/alerts/flow-skip' && req.method === 'GET') {
+      const flowSkipRule = alertRules.find(r => r.id === 'flow-skip-alert');
+      
+      try {
+        const mergedPRs = execSync(
+          `gh pr list --state merged --limit 20 --json number,title,mergedAt,reviewDecision,reviews`,
+          { encoding: 'utf-8' }
+        );
+        const prList = JSON.parse(mergedPRs);
+        
+        const prsWithoutReview = [];
+        
+        for (const pr of prList) {
+          const hasApprovedReview = pr.reviews?.some(r => r.state === 'APPROVED') || 
+                                    pr.reviewDecision === 'APPROVED';
+          
+          prsWithoutReview.push({
+            number: pr.number,
+            title: pr.title,
+            mergedAt: pr.mergedAt,
+            hasReview: hasApprovedReview
+          });
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          rule: flowSkipRule,
+          recentMergedPRs: prList.length,
+          violations: prsWithoutReview.filter(pr => !pr.hasReview).length,
+          prs: prsWithoutReview
+        }));
+        return;
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+        return;
+      }
+    }
+    
     // GET: Return available alert endpoints
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -1676,7 +1716,8 @@ const server = http.createServer((req, res) => {
         'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
         'DELETE /api/alerts/:id - Reset triggered alert',
         'POST /api/alerts/e2e - Record E2E test result',
-        'GET /api/alerts/bottleneck - Get bottleneck status (pending PRs per agent)'
+        'GET /api/alerts/bottleneck - Get bottleneck status (pending PRs per agent)',
+        'GET /api/alerts/flow-skip - Get flow skip status (merged PRs without review)'
       ]
     }));
   } else if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
@@ -1754,7 +1795,8 @@ const alertRules = [
   { id: 'e2e-fail-3', name: 'E2E 連續失敗 3 次', type: 'e2e_failure', threshold: 3, enabled: true, triggered: false, lastTriggered: null },
   { id: 'agent-offline-5min', name: 'Agent 離線 5 分鐘', type: 'agent_offline', threshold: 5 * 60 * 1000, enabled: true, triggered: false, lastTriggered: null },
   { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null },
-  { id: 'bottleneck-agent', name: 'Agent 待審 PR 瓶頸', type: 'bottleneck', threshold: 3, enabled: true, triggered: false, lastTriggered: null, description: '檢測 Agent 待審 PR 數量是否超過閾值' }
+  { id: 'bottleneck-agent', name: 'Agent 待審 PR 瓶頸', type: 'bottleneck', threshold: 3, enabled: true, triggered: false, lastTriggered: null, description: '檢測 Agent 待審 PR 數量是否超過閾值' },
+  { id: 'flow-skip-alert', name: 'PR 未經 Review 直接合併', type: 'flow_skip', threshold: 1, enabled: true, triggered: false, lastTriggered: null, description: '檢測未經 Review 即合併的 PR' }
 ];
 const e2eResults = [];
 const MAX_E2E_RESULTS = 100;
@@ -1832,6 +1874,62 @@ async function checkBottleneckAlerts(triggeredAlerts) {
   }
 }
 
+// Track merged PRs to avoid duplicate alerts
+const trackedMergedPRs = new Set();
+
+async function checkFlowSkipAlerts(triggeredAlerts) {
+  const flowSkipRule = alertRules.find(r => r.id === 'flow-skip-alert');
+  if (!flowSkipRule || !flowSkipRule.enabled) return;
+  
+  try {
+    // Get recently merged PRs (last 20 merged PRs)
+    const mergedPRs = execSync(
+      `gh pr list --state merged --limit 20 --json number,title,mergedAt,reviewDecision,reviews`,
+      { encoding: 'utf-8' }
+    );
+    const prList = JSON.parse(mergedPRs);
+    
+    // Check each merged PR for missing review
+    for (const pr of prList) {
+      const prKey = `${pr.number}-${pr.mergedAt}`;
+      
+      // Skip if already tracked
+      if (trackedMergedPRs.has(prKey)) continue;
+      
+      // Check if PR was merged without review approval
+      const hasApprovedReview = pr.reviews?.some(r => r.state === 'APPROVED') || 
+                                pr.reviewDecision === 'APPROVED';
+      
+      if (!hasApprovedReview) {
+        // New violation detected - add to tracked and trigger alert
+        trackedMergedPRs.add(prKey);
+        
+        // Keep only last 100 tracked PRs
+        if (trackedMergedPRs.size > 100) {
+          const iterator = trackedMergedPRs.values();
+          for (let i = 0; i < 50; i++) {
+            trackedMergedPRs.delete(iterator.next().value);
+          }
+        }
+        
+        flowSkipRule.triggered = true;
+        flowSkipRule.lastTriggered = new Date().toISOString();
+        
+        triggeredAlerts.push({
+          rule: flowSkipRule,
+          message: `🚨 警告：PR #${pr.number} "${pr.title}" 未經 Review 直接合併！`,
+          severity: 'critical',
+          prNumber: pr.number,
+          prTitle: pr.title,
+          mergedAt: pr.mergedAt
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[FlowSkip-Alert] Error checking merged PRs:', error.message);
+  }
+}
+
 async function checkAlertRules() {
   return new Promise(async (resolve) => {
     const triggeredAlerts = [];
@@ -1861,6 +1959,7 @@ async function checkAlertRules() {
         
         // Check for bottleneck agents with pending PRs
         await checkBottleneckAlerts(triggeredAlerts);
+        await checkFlowSkipAlerts(triggeredAlerts);
         
         triggeredAlerts.forEach(alert => {
           alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
@@ -1873,6 +1972,7 @@ async function checkAlertRules() {
     } else {
       // Check for bottleneck agents even when offline rule is disabled
       await checkBottleneckAlerts(triggeredAlerts);
+      await checkFlowSkipAlerts(triggeredAlerts);
       
       triggeredAlerts.forEach(alert => {
         alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
