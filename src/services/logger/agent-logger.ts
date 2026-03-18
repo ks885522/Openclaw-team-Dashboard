@@ -15,7 +15,7 @@
  *   });
  *   
  *   // Enable real-time logging to API server
- *   agentLogger.setRealtimeMode(true, 'http://localhost:3001');
+ *   agentLogger.setRealtimeMode(true, 'http://localhost:18789');
  *   
  *   // Git operations
  *   agentLogger.branchCreated('engineering', 'feature/123-new-feature');
@@ -55,7 +55,7 @@ interface LogOptions {
 
 // Configuration for real-time mode
 let realtimeEnabled = false;
-let apiServerUrl = 'http://localhost:3001';
+let apiServerUrl = 'http://localhost:18789';
 
 /**
  * Ensure the log directory exists

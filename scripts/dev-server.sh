@@ -3,7 +3,7 @@
 # Usage: ./dev-server.sh [port] [npm script]
 # Examples:
 #   ./dev-server.sh           # Start on default port 5173
-#   ./dev-server.sh 3001      # Start on port 3001
+#   ./dev-server.sh 18789      # Start on port 18789
 #   ./dev-server.sh 3002 test # Run npm run test on port 3002
 
 set -e
@@ -32,7 +32,7 @@ kill_port() {
 
 # Kill zombie Vite/Node processes (common ports)
 echo -e "${GREEN}[DevOps]${NC} Scanning for zombie processes..."
-for p in 5173 3000 3001 3002 3003; do
+for p in 5173 3000 18789 3002 3003; do
     kill_port $p
 done
 
