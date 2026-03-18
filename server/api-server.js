@@ -1603,6 +1603,70 @@ const server = http.createServer((req, res) => {
       return;
     }
     
+    // Get bottleneck status (pending PRs per agent)
+    if (req.url === '/api/alerts/bottleneck' && req.method === 'GET') {
+      const bottleneckRule = alertRules.find(r => r.id === 'bottleneck-agent');
+      const threshold = bottleneckRule?.threshold || 3;
+      
+      let agentPRCounts = {};
+      try {
+        const prs = execSync(
+          `gh pr list --state open --limit 50 --json number,title,assignees,reviewers`,
+          { encoding: 'utf-8' }
+        );
+        const prList = JSON.parse(prs);
+        
+        const agentMap = {
+          'engineering': ['⚙️', 'task-tracking'],
+          'art-design': ['🎨'],
+          'requirements': ['🔍'],
+          'task-tracking': ['📋'],
+          'art-review': ['🖼️'],
+          'feature-review': ['🧪'],
+          'devops': ['🚀']
+        };
+        
+        for (const agent of Object.keys(agentMap)) {
+          agentPRCounts[agent] = 0;
+        }
+        
+        prList.forEach(pr => {
+          const reviewers = pr.reviewers || [];
+          reviewers.forEach(reviewer => {
+            for (const [agent, patterns] of Object.entries(agentMap)) {
+              if (patterns.some(p => reviewer.login?.includes(p) || pr.title?.includes(p))) {
+                agentPRCounts[agent]++;
+              }
+            }
+          });
+          const assignees = pr.assignees || [];
+          assignees.forEach(assignee => {
+            for (const [agent, patterns] of Object.entries(agentMap)) {
+              if (patterns.some(p => assignee.login?.includes(p) || pr.title?.includes(p))) {
+                agentPRCounts[agent]++;
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.error('[Bottleneck-API] Error:', error.message);
+      }
+      
+      // Identify bottleneck agents
+      const bottleneckAgents = Object.entries(agentPRCounts)
+        .filter(([_, count]) => count >= threshold)
+        .map(([agent, count]) => ({ agent, prCount: count }));
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        threshold,
+        agents: agentPRCounts,
+        bottleneckAgents,
+        rule: bottleneckRule
+      }));
+      return;
+    }
+    
     // GET: Return available alert endpoints
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -1611,7 +1675,8 @@ const server = http.createServer((req, res) => {
         'POST /api/alerts/check - Check alert rules manually',
         'PATCH /api/alerts/:id - Update rule (enabled, threshold)',
         'DELETE /api/alerts/:id - Reset triggered alert',
-        'POST /api/alerts/e2e - Record E2E test result'
+        'POST /api/alerts/e2e - Record E2E test result',
+        'GET /api/alerts/bottleneck - Get bottleneck status (pending PRs per agent)'
       ]
     }));
   } else if (req.url.startsWith('/api/webhooks/config') && req.method === 'GET') {
@@ -1688,12 +1753,84 @@ const server = http.createServer((req, res) => {
 const alertRules = [
   { id: 'e2e-fail-3', name: 'E2E 連續失敗 3 次', type: 'e2e_failure', threshold: 3, enabled: true, triggered: false, lastTriggered: null },
   { id: 'agent-offline-5min', name: 'Agent 離線 5 分鐘', type: 'agent_offline', threshold: 5 * 60 * 1000, enabled: true, triggered: false, lastTriggered: null },
-  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null }
+  { id: 'token-anomaly', name: 'Token 消耗異常', type: 'token_anomaly', threshold: 100000, enabled: true, triggered: false, lastTriggered: null },
+  { id: 'bottleneck-agent', name: 'Agent 待審 PR 瓶頸', type: 'bottleneck', threshold: 3, enabled: true, triggered: false, lastTriggered: null, description: '檢測 Agent 待審 PR 數量是否超過閾值' }
 ];
 const e2eResults = [];
 const MAX_E2E_RESULTS = 100;
 const alertHistory = [];
 const MAX_ALERT_HISTORY = 50;
+
+async function checkBottleneckAlerts(triggeredAlerts) {
+  const bottleneckRule = alertRules.find(r => r.id === 'bottleneck-agent');
+  if (!bottleneckRule || !bottleneckRule.enabled) return;
+  
+  try {
+    // Get open PRs with assignees
+    const prs = execSync(
+      `gh pr list --state open --limit 50 --json number,title,assignees,reviewers`,
+      { encoding: 'utf-8' }
+    );
+    const prList = JSON.parse(prs);
+    
+    // Count pending PRs per agent assignee
+    const agentPRCounts = {};
+    const agentMap = {
+      'engineering': ['⚙️', 'task-tracking'],
+      'art-design': ['🎨'],
+      'requirements': ['🔍'],
+      'task-tracking': ['📋'],
+      'art-review': ['🖼️'],
+      'feature-review': ['🧪'],
+      'devops': ['🚀']
+    };
+    
+    // Initialize counts
+    for (const agent of Object.keys(agentMap)) {
+      agentPRCounts[agent] = 0;
+    }
+    
+    // Count PRs by assignee (using reviewers to identify agent tasks)
+    prList.forEach(pr => {
+      const reviewers = pr.reviewers || [];
+      reviewers.forEach(reviewer => {
+        // Map reviewer to agent based on patterns
+        for (const [agent, patterns] of Object.entries(agentMap)) {
+          if (patterns.some(p => reviewer.login?.includes(p) || pr.title?.includes(p))) {
+            agentPRCounts[agent]++;
+          }
+        }
+      });
+      // Also check assignees
+      const assignees = pr.assignees || [];
+      assignees.forEach(assignee => {
+        for (const [agent, patterns] of Object.entries(agentMap)) {
+          if (patterns.some(p => assignee.login?.includes(p) || pr.title?.includes(p))) {
+            agentPRCounts[agent]++;
+          }
+        }
+      });
+    });
+    
+    // Check if any agent exceeds threshold
+    for (const [agent, count] of Object.entries(agentPRCounts)) {
+      if (count >= bottleneckRule.threshold && !bottleneckRule.triggered) {
+        bottleneckRule.triggered = true;
+        bottleneckRule.lastTriggered = new Date().toISOString();
+        
+        triggeredAlerts.push({
+          rule: bottleneckRule,
+          message: `⚠️ Agent ${agent} 有 ${count} 個待審 PR，可能成為瓶頸`,
+          severity: 'warning',
+          agent: agent,
+          prCount: count
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[Bottleneck-Alert] Error checking PRs:', error.message);
+  }
+}
 
 async function checkAlertRules() {
   return new Promise(async (resolve) => {
@@ -1721,6 +1858,10 @@ async function checkAlertRules() {
             }
           }
         });
+        
+        // Check for bottleneck agents with pending PRs
+        await checkBottleneckAlerts(triggeredAlerts);
+        
         triggeredAlerts.forEach(alert => {
           alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
           if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
@@ -1730,6 +1871,9 @@ async function checkAlertRules() {
         resolve(triggeredAlerts);
       });
     } else {
+      // Check for bottleneck agents even when offline rule is disabled
+      await checkBottleneckAlerts(triggeredAlerts);
+      
       triggeredAlerts.forEach(alert => {
         alertHistory.unshift({ ...alert, timestamp: new Date().toISOString() });
         if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
