@@ -2524,3 +2524,190 @@ input:focus, textarea:focus, select:focus {
     font-size: 11px;
   }
 }
+
+/* DoD Compliance Dashboard */
+.dod-compliance-dashboard {
+  padding: 20px;
+}
+
+.dod-compliance-dashboard .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.dod-compliance-dashboard .header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.dod-compliance-dashboard .controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dod-compliance-dashboard .controls select {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.dod-compliance-dashboard .last-update {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dod-compliance-dashboard .summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dod-compliance-dashboard .card {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.dod-compliance-dashboard .card.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.dod-compliance-dashboard .card .rate,
+.dod-compliance-dashboard .card .count {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.dod-compliance-dashboard .card .label {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+
+.dod-compliance-dashboard .period-info {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.dod-compliance-dashboard .breakdown {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dod-compliance-dashboard .breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dod-compliance-dashboard .badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.dod-compliance-dashboard .badge.art {
+  background: rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+.dod-compliance-dashboard .badge.func {
+  background: rgba(72, 187, 120, 0.2);
+  color: #48bb78;
+}
+
+.dod-compliance-dashboard .badge.missing {
+  background: rgba(245, 101, 101, 0.2);
+  color: #f56565;
+}
+
+.dod-compliance-dashboard .issues-list h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.dod-compliance-dashboard .issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dod-compliance-dashboard .issue-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.dod-compliance-dashboard .issue-item.compliant {
+  border-left: 3px solid #48bb78;
+}
+
+.dod-compliance-dashboard .issue-item.non-compliant {
+  border-left: 3px solid #f56565;
+}
+
+.dod-compliance-dashboard .issue-number {
+  font-weight: bold;
+  color: var(--text-secondary);
+}
+
+.dod-compliance-dashboard .issue-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.dod-compliance-dashboard .issue-item .badges {
+  display: flex;
+  gap: 4px;
+}
+
+/* Compact mode */
+.dod-compliance-dashboard.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+}
+
+.dod-compliance-dashboard.compact .compliance-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dod-compliance-dashboard.compact .compliance-rate .rate {
+  font-size: 24px;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.dod-compliance-dashboard.compact .compliance-rate .label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.dod-compliance-dashboard.compact .stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
