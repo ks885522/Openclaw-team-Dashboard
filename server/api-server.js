@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3001;
+const TOKEN_QUOTA = parseInt(process.env.TOKEN_QUOTA || '1000000', 10); // Default 1M tokens
+const TOKEN_WARNING_THRESHOLD = 0.8; // Warn at 80% usage
+const TOKEN_CRITICAL_THRESHOLD = 0.95; // Critical at 95% usage
 const LOG_DIR = path.join(process.cwd(), 'logs');
 const AGENT_LOG_FILE = path.join(LOG_DIR, 'agent-activity.log');
 const REPO_OWNER = 'ks885522';
@@ -1518,6 +1521,147 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
     }
+  } else if (req.url === '/api/token-allocation' && req.method === 'GET') {
+    // Token Allocation API - Get token usage by priority and suggestions
+    try {
+      // Fetch all open issues
+      const issuesCmd = `gh issue list --state open --limit 200 --json number,title,state,labels,assignees`;
+      exec(issuesCmd, { cwd: process.cwd() }, (err, stdout, stderr) => {
+        if (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to fetch issues: ' + err.message }));
+          return;
+        }
+
+        try {
+          const issues = JSON.parse(stdout);
+
+          // Estimate tokens per issue based on task complexity
+          const ESTIMATE_TOKENS = {
+            'priority:critical': 8000,
+            'priority:high': 5000,
+            'priority:normal': 3000
+          };
+
+          // Group issues by priority
+          const byPriority = {
+            'priority:critical': [],
+            'priority:high': [],
+            'priority:normal': []
+          };
+
+          let totalEstimatedTokens = 0;
+
+          issues.forEach(issue => {
+            const priorityLabel = issue.labels.find(l =>
+              ['priority:critical', 'priority:high', 'priority:normal'].includes(l.name)
+            );
+            const priority = priorityLabel ? priorityLabel.name : 'priority:normal';
+            const estimatedTokens = ESTIMATE_TOKENS[priority] || 3000;
+
+            byPriority[priority].push({
+              id: issue.number,
+              title: issue.title,
+              labels: issue.labels.map(l => l.name),
+              assignees: issue.assignees.map(a => a.login),
+              estimatedTokens
+            });
+
+            totalEstimatedTokens += estimatedTokens;
+          });
+
+          // Calculate usage
+          const usagePercent = totalEstimatedTokens / TOKEN_QUOTA;
+          const remainingTokens = TOKEN_QUOTA - totalEstimatedTokens;
+
+          // Determine status
+          let status = 'normal';
+          let suggestion = null;
+          if (usagePercent >= TOKEN_CRITICAL_THRESHOLD) {
+            status = 'critical';
+            const p2Tasks = byPriority['priority:normal'];
+            if (p2Tasks.length > 0) {
+              suggestion = {
+                action: 'pause_p2',
+                message: `Token 使用已達 ${Math.round(usagePercent * 100)}%，建議暫停 ${p2Tasks.length} 個 P2 任務`,
+                tasksToPause: p2Tasks.slice(0, 5).map(t => ({ id: t.id, title: t.title }))
+              };
+            }
+          } else if (usagePercent >= TOKEN_WARNING_THRESHOLD) {
+            status = 'warning';
+            suggestion = {
+              action: 'monitor',
+              message: `Token 使用已達 ${Math.round(usagePercent * 100)}%，建議密切監控 P2 任務`
+            };
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            quota: TOKEN_QUOTA,
+            used: totalEstimatedTokens,
+            remaining: remainingTokens,
+            usagePercent: Math.round(usagePercent * 100),
+            status,
+            byPriority: {
+              critical: {
+                tasks: byPriority['priority:critical'].length,
+                tokens: byPriority['priority:critical'].reduce((s, t) => s + t.estimatedTokens, 0)
+              },
+              high: {
+                tasks: byPriority['priority:high'].length,
+                tokens: byPriority['priority:high'].reduce((s, t) => s + t.estimatedTokens, 0)
+              },
+              normal: {
+                tasks: byPriority['priority:normal'].length,
+                tokens: byPriority['priority:normal'].reduce((s, t) => s + t.estimatedTokens, 0)
+              }
+            },
+            tasks: byPriority,
+            suggestion,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (parseErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to parse issues: ' + parseErr.message }));
+        }
+      });
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (req.url.startsWith('/api/token-allocation/pause') && req.method === 'POST') {
+    // Pause/Resume a task by adding/removing 'paused' label
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const { issueNumber, action } = data;
+
+        if (!issueNumber || !action) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'issueNumber and action (pause/resume) are required' }));
+          return;
+        }
+
+        const labelAction = action === 'pause' ? 'add' : 'remove';
+        const labelName = 'paused';
+        const cmd = `gh issue edit ${issueNumber} --${labelAction}-label "${labelName}"`;
+
+        exec(cmd, { cwd: process.cwd() }, (err, stdout, stderr) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Failed to ${action} task: ${err.message}` }));
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, action, issueNumber }));
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request body' }));
+      }
+    });
   } else if (req.url.startsWith('/api/agent/control')) {
     // Agent control endpoints: pause, terminate, retry, override
     if (req.method === 'POST') {

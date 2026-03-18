@@ -15,6 +15,7 @@ import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
 import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
+import TokenAllocation from './components/TokenAllocation'
 
 // 項目類型
 interface Project {
@@ -57,7 +58,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -440,6 +441,12 @@ function App() {
             >
               🔍 證據對比
             </button>
+            <button 
+              className={`nav-tab ${activeTab === 'allocation' ? 'active' : ''}`}
+              onClick={() => setActiveTab('allocation')}
+            >
+              ⚖️ Token分配
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -686,6 +693,8 @@ function App() {
               qaLabel="QA 實機截圖"
             />
           </div>
+        ) : activeTab === 'allocation' ? (
+          <TokenAllocation />
         ) : (
           <PerformanceDashboard />
         )}

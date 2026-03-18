@@ -1,0 +1,263 @@
+.token-allocation {
+  background: var(--bg-secondary, #1a1a2e);
+  border-radius: 8px;
+  padding: 16px;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.token-allocation.loading,
+.token-allocation.error {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+.token-allocation.error {
+  color: #ff6b6b;
+}
+
+.allocation-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #fff;
+}
+
+.quota-bar {
+  margin-bottom: 12px;
+}
+
+.quota-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #aaa;
+}
+
+.quota-track {
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.quota-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.status-warning .quota-fill {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.status-critical .quota-fill {
+  background: linear-gradient(90deg, #f87171, #ef4444);
+}
+
+.quota-percent {
+  text-align: right;
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.suggestion-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.suggestion-box.warning {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.suggestion-box.critical {
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+
+.suggestion-icon {
+  font-size: 18px;
+}
+
+.suggestion-message {
+  font-weight: 500;
+}
+
+.suggestion-tasks {
+  margin-top: 4px;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.priority-breakdown {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.priority-row {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.priority-row.critical {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.priority-row.high {
+  background: rgba(251, 146, 60, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.priority-row.normal {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.priority-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.priority-count {
+  color: #ccc;
+}
+
+.priority-tokens {
+  color: #888;
+  font-size: 11px;
+}
+
+.task-list h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #fff;
+}
+
+.task-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.task-list th {
+  text-align: left;
+  padding: 6px 8px;
+  color: #888;
+  border-bottom: 1px solid #333;
+  font-weight: 500;
+}
+
+.task-list td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a2a3e;
+}
+
+.task-list tr.paused {
+  opacity: 0.5;
+}
+
+.task-list tr.paused .task-title {
+  text-decoration: line-through;
+}
+
+.task-title {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.priority-badge.critical {
+  background: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.priority-badge.high {
+  background: rgba(251, 146, 60, 0.3);
+  color: #fb923c;
+}
+
+.priority-badge.normal {
+  background: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.btn-pause,
+.btn-resume {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-pause {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.btn-pause:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.35);
+}
+
+.btn-pause:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-resume {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.btn-resume:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.35);
+}
+
+.allocation-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #666;
+}
+
+.btn-refresh {
+  background: none;
+  border: 1px solid #444;
+  color: #888;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.btn-refresh:hover {
+  background: #2a2a3e;
+  color: #ccc;
+}
