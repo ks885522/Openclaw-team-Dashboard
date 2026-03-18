@@ -8,6 +8,7 @@
   --bg-dark: #0A0E17;
   --bg-card: #151B26;
   --bg-light: #1E2533;
+  --bg-secondary: var(--bg-card);
   --border: #2A3444;
   
   /* Text Colors */
