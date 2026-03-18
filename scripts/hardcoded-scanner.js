@@ -8,9 +8,6 @@
  *   node scripts/hardcoded-scanner.js [--format=json|text] [--output=path] [--fix]
  */
 
-const fs = require('fs');
-const path = require('path');
-
 // Scanner rules based on ENVIRONMENT.md
 const RULES = {
   // Port hardcoding: 3000, 3001, 3002, 8080, 5173

@@ -17,6 +17,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "lint": "echo 'TODO: Implement linting'",
+    "scan:hardcoded": "node scripts/hardcoded-scanner.js .",
+    "ci-check": "npm run scan:hardcoded && npm run build",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
