@@ -1246,6 +1246,161 @@ const server = http.createServer((req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       });
+  } else if (req.url.startsWith('/api/frequency-tuning')) {
+    // Frequency Tuning Suggestions endpoint
+    // Detects idle agents and suggests cron frequency adjustments based on token quota
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const thresholdMinutes = parseInt(url.searchParams.get('idle_threshold_minutes') || '30', 10);
+    const quotaPercentThreshold = parseFloat(url.searchParams.get('quota_threshold_percent') || '30', 10);
+    const autoMode = url.searchParams.get('auto') === 'true';
+
+    getAgentStatus()
+      .then(async (agentStatusList) => {
+        try {
+          // Read activity logs to detect truly idle agents
+          const logs = readAgentLogs();
+          const now = Date.now();
+          const idleThresholdMs = thresholdMinutes * 60 * 1000;
+
+          // Calculate last activity time per agent
+          const lastActivity = {};
+          logs.forEach(log => {
+            const agentId = log.agent_id;
+            const logTime = log.timestamp ? new Date(log.timestamp).getTime() : 0;
+            if (!lastActivity[agentId] || logTime > lastActivity[agentId]) {
+              lastActivity[agentId] = logTime;
+            }
+          });
+
+          // Calculate cost metrics to estimate remaining quota
+          const costMetrics = calculateCostMetrics();
+          const estimatedTotalQuota = 5000000; // ~5M tokens per 5h cycle estimate
+          const usedTokens = costMetrics.totalTokens || 0;
+          const remainingQuota = Math.max(0, estimatedTotalQuota - usedTokens);
+          const quotaPercent = (remainingQuota / estimatedTotalQuota) * 100;
+
+          // Determine if quota is low
+          const isQuotaLow = quotaPercent < quotaPercentThreshold;
+
+          // Build suggestions per agent
+          const suggestions = agentStatusList.map(agent => {
+            const lastActiveTime = lastActivity[agent.id];
+            const idleMs = lastActiveTime ? now - lastActiveTime : null;
+            const isIdle = idleMs !== null && idleMs > idleThresholdMs;
+            const isOffline = agent.status === 'offline';
+
+            let currentInterval = 'normal'; // normal, frequent, slow
+            let recommendedInterval = 'normal';
+            let adjustmentPercent = 0;
+            let reason = '';
+
+            // Determine current interval based on status
+            if (isOffline) {
+              currentInterval = 'stopped';
+              recommendedInterval = 'stopped';
+              reason = 'Agent is offline — no action needed';
+            } else if (isIdle) {
+              const idleMinutes = Math.floor(idleMs / 60000);
+              currentInterval = 'idle';
+              if (isQuotaLow) {
+                recommendedInterval = 'slow';
+                adjustmentPercent = -50;
+                reason = `Idle ${idleMinutes}+ min with low quota (${quotaPercent.toFixed(1)}% remaining) — reduce to 50% frequency`;
+              } else {
+                recommendedInterval = 'normal';
+                adjustmentPercent = 0;
+                reason = `Idle ${idleMinutes}+ min but quota OK (${quotaPercent.toFixed(1)}% remaining) — no change needed`;
+              }
+            } else {
+              currentInterval = 'active';
+              if (isQuotaLow) {
+                recommendedInterval = 'slow';
+                adjustmentPercent = -30;
+                reason = `Active agent with low quota (${quotaPercent.toFixed(1)}% remaining) — reduce frequency by 30%`;
+              } else {
+                recommendedInterval = 'normal';
+                adjustmentPercent = 0;
+                reason = 'Agent active and quota sufficient — maintain current frequency';
+              }
+            }
+
+            // Build cron edit suggestion if not normal
+            let cronSuggestion = null;
+            if (recommendedInterval !== 'normal' && recommendedInterval !== 'stopped') {
+              // Map interval to cron everyMs values
+              const cronEveryMsMap = {
+                'slow': 900000,       // 15 min
+                'frequent': 150000,   // 2.5 min
+              };
+              const everyMs = cronEveryMsMap[recommendedInterval];
+              if (everyMs) {
+                cronSuggestion = {
+                  agentId: agent.id,
+                  currentState: currentInterval,
+                  suggestedState: recommendedInterval,
+                  adjustmentPercent,
+                  openclawCronEdit: `npx openclaw cron edit --agent ${agent.id} --everyMs ${everyMs}`,
+                  everyMs,
+                  reason
+                };
+              }
+            }
+
+            return {
+              agentId: agent.id,
+              name: agent.name,
+              emoji: agent.emoji,
+              status: agent.status,
+              isIdle: isIdle,
+              idleMs: idleMs,
+              currentInterval,
+              recommendedInterval,
+              adjustmentPercent,
+              reason,
+              cronSuggestion
+            };
+          });
+
+          // Auto mode: return actions that would be taken
+          const autoActions = autoMode
+            ? suggestions
+                .filter(s => s.cronSuggestion !== null)
+                .map(s => ({
+                  agentId: s.agentId,
+                  action: 'adjust_frequency',
+                  everyMs: s.cronSuggestion.everyMs,
+                  reason: s.cronSuggestion.reason
+                }))
+            : [];
+
+          const response = {
+            quota: {
+              estimatedTotalQuota,
+              usedTokens,
+              remainingQuota,
+              quotaPercentRemaining: Math.round(quotaPercent * 10) / 10,
+              isLow: isQuotaLow,
+              thresholdPercent: quotaPercentThreshold
+            },
+            idleThresholdMinutes: thresholdMinutes,
+            suggestions,
+            autoActions: autoMode ? autoActions : null,
+            timestamp: new Date().toISOString()
+          };
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(response));
+        } catch (err) {
+          console.error('[FrequencyTuning] Error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      })
+      .catch(err => {
+        console.error('[FrequencyTuning] Error getting agent status:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
   } else if (req.url.startsWith('/api/create-issue')) {
     // Auto-create GitHub Issue with screenshot attachment
     if (req.method === 'POST') {
