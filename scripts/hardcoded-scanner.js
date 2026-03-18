@@ -1,158 +1,277 @@
 #!/usr/bin/env node
 
 /**
- * Hardcoded Scanner CLI
+ * Hardcoded Scanner CLI Tool
  * 掃描 Codebase 中違反 ENVIRONMENT.md 的硬編碼
+ * 
+ * Usage:
+ *   node scripts/hardcoded-scanner.js [--format=json|text] [--output=path] [--fix]
  */
 
-const fs = require('fs');
-const path = require('path');
-
-// 規則配置
-const RULES = [
-  {
-    name: 'Forbidden Port 3001',
-    pattern: /3001/,
-    message: '嚴禁使用 3001 端口（過時的測試配置）',
-    severity: 'error'
+// Scanner rules based on ENVIRONMENT.md
+const RULES = {
+  // Port hardcoding: 3000, 3001, 3002, 8080, 5173
+  PORT: {
+    name: 'Port Hardcoding',
+    pattern: /\b(3000|3001|3002|8080|5173)\b/g,
+    severity: 'error',
+    description: 'Hardcoded port number found. Use environment variables instead.'
   },
-  {
-    name: 'Hardcoded localhost',
-    pattern: /localhost:3000(?!\/api)/,
-    message: '避免硬編碼 localhost:3000，應使用環境變數',
-    severity: 'warning'
+  
+  // URL hardcoding (excluding localhost, ENV vars, VITE_ prefixes)
+  URL: {
+    name: 'URL Hardcoding',
+    pattern: /https?:\/\/(?!localhost|127\.0\.0\.1|{{\.|{{\{|ENV_|VITE_|REACT_APP_)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    severity: 'error',
+    description: 'Hardcoded URL found. Use environment variables or config files.'
   },
-  {
-    name: 'Hardcoded Environment',
-    pattern: /process\.env\.(NODE_ENV|PORT|API_URL).*['"(]==.*['"']/,
-    message: '環境變數應從配置中心讀取',
-    severity: 'warning'
+  
+  // API Key / Token patterns
+  APIKEY: {
+    name: 'API Key/Token',
+    pattern: /(api[_-]?key|token|secret|password|pwd|auth)['":\s=]+['"][a-zA-Z0-9_\-]{16,}['"]/gi,
+    severity: 'critical',
+    description: 'Potential hardcoded API key or token found.'
+  },
+  
+  // Direct process.env access without allowed list
+  ENV: {
+    name: 'Direct Environment Access',
+    pattern: /process\.env\.(?!PORT|GITHUB_TOKEN|OPENCLAW_API_URL|VITE_|NODE_ENV|LOG_LEVEL|CACHE_TTL|SESSION_TIMEOUT)[A-Z_]+/g,
+    severity: 'warning',
+    description: 'Direct process.env access. Consider adding to ENVIRONMENT.md allowed list.'
   }
+};
+
+// Directories and files to scan
+const SCAN_TARGETS = [
+  'server',
+  'src',
+  'scripts'
 ];
 
-// 忽略的目錄
-const IGNORE_DIRS = [
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  'coverage',
-  '__pycache__',
-  '.venv',
-  'venv',
-  'scripts/hardcoded-scanner.js' // 排除掃描儀本身
+// Files and patterns to exclude
+const EXCLUDE_PATTERNS = [
+  /node_modules/,
+  /\.git/,
+  /dist/,
+  /\.vite/,
+  /logs/,
+  /temp/,
+  /ENVIRONMENT\.md/,
+  /hardcoded-scanner\.js/
 ];
 
-// 掃描的檔案類型
-const SCAN_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.vue', '.py', '.json', '.yaml', '.yml', '.sh'];
+// File extensions to scan
+const SCAN_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.json', '.env', '.env.example'];
 
-function shouldIgnore(filePath) {
-  const fileName = path.basename(filePath);
-  // 排除掃描儀本身
-  if (fileName === 'hardcoded-scanner.js') return true;
-  return IGNORE_DIRS.some(dir => filePath.includes(`/${dir}/`) || filePath.endsWith(`/${dir}`));
-}
-
-function shouldScan(filePath) {
-  const ext = path.extname(filePath);
-  return SCAN_EXTENSIONS.includes(ext);
-}
-
-function scanFile(filePath) {
-  const issues = [];
+/**
+ * Find all files to scan
+ */
+function findFiles(dir, files = []) {
+  if (!fs.existsSync(dir)) return files;
   
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n');
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
     
-    lines.forEach((line, index) => {
-      RULES.forEach(rule => {
-        if (rule.pattern.test(line)) {
-          issues.push({
-            file: filePath,
-            line: index + 1,
-            column: line.indexOf(line.match(rule.pattern)?.[0] || ''),
-            message: rule.message,
-            severity: rule.severity,
-            rule: rule.name,
-            content: line.trim()
-          });
-        }
-      });
-    });
-  } catch (err) {
-    // 忽略讀取錯誤
-  }
-  
-  return issues;
-}
-
-function scanDirectory(dirPath, results = []) {
-  if (shouldIgnore(dirPath)) return results;
-  
-  try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    // Skip excluded patterns
+    if (EXCLUDE_PATTERNS.some(pattern => pattern.test(fullPath))) {
+      continue;
+    }
     
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
-      
-      if (entry.isDirectory() && !shouldIgnore(fullPath)) {
-        scanDirectory(fullPath, results);
-      } else if (entry.isFile() && shouldScan(fullPath) && !shouldIgnore(fullPath)) {
-        const fileIssues = scanFile(fullPath);
-        results.push(...fileIssues);
+    if (entry.isDirectory()) {
+      findFiles(fullPath, files);
+    } else if (entry.isFile()) {
+      const ext = path.extname(entry.name);
+      if (SCAN_EXTENSIONS.includes(ext) || entry.name.startsWith('.env')) {
+        files.push(fullPath);
       }
     }
-  } catch (err) {
-    // 忽略訪問錯誤
   }
   
-  return results;
+  return files;
 }
 
-function main() {
-  const targetDir = process.argv[2] || '.';
-  const outputFormat = process.argv.includes('--json') ? 'json' : 'text';
+/**
+ * Scan a single file for violations
+ */
+function scanFile(filePath) {
+  const violations = [];
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const lines = content.split('\n');
   
-  console.log(`🔍 掃描目錄: ${targetDir}`);
-  console.log('---');
+  for (const [ruleKey, rule] of Object.entries(RULES)) {
+    // Reset regex lastIndex
+    rule.pattern.lastIndex = 0;
+    
+    // Find all matches
+    let match;
+    while ((match = rule.pattern.exec(content)) !== null) {
+      // Calculate line number
+      const lineNumber = content.substring(0, match.index).split('\n').length;
+      const line = lines[lineNumber - 1]?.trim() || '';
+      
+      // Skip comments explaining the value
+      if (line.match(/^\/\/.*example|^\/\*.*example|^\s*\*|^\s*#/)) {
+        continue;
+      }
+      
+      violations.push({
+        rule: ruleKey,
+        name: rule.name,
+        severity: rule.severity,
+        description: rule.description,
+        file: filePath,
+        line: lineNumber,
+        content: line,
+        match: match[0]
+      });
+    }
+  }
   
-  const results = scanDirectory(path.resolve(targetDir));
+  return violations;
+}
+
+/**
+ * Main scanner function
+ */
+function scan(options = {}) {
+  console.log('🔍 Hardcoded Scanner');
+  console.log('====================\n');
   
-  if (results.length === 0) {
-    console.log('✅ 未發現硬編碼問題！');
+  const allFiles = [];
+  
+  // Find files to scan
+  for (const target of SCAN_TARGETS) {
+    const targetPath = path.join(process.cwd(), target);
+    if (fs.existsSync(targetPath)) {
+      findFiles(targetPath, allFiles);
+    }
+  }
+  
+  console.log(`Scanning ${allFiles.length} files...\n`);
+  
+  const allViolations = [];
+  let scannedCount = 0;
+  
+  for (const file of allFiles) {
+    const violations = scanFile(file);
+    if (violations.length > 0) {
+      allViolations.push(...violations);
+    }
+    scannedCount++;
+  }
+  
+  // Summary by severity
+  const summary = {
+    critical: 0,
+    error: 0,
+    warning: 0
+  };
+  
+  for (const v of allViolations) {
+    summary[v.severity]++;
+  }
+  
+  // Output results
+  if (options.format === 'json') {
+    const result = {
+      summary,
+      violations: allViolations,
+      scannedFiles: scannedCount,
+      timestamp: new Date().toISOString()
+    };
+    
+    if (options.output) {
+      fs.writeFileSync(options.output, JSON.stringify(result, null, 2));
+      console.log(`📄 Report saved to: ${options.output}`);
+    } else {
+      console.log(JSON.stringify(result, null, 2));
+    }
+  } else {
+    // Text format
+    console.log('📊 Summary');
+    console.log('─'.repeat(40));
+    console.log(`  🔴 Critical: ${summary.critical}`);
+    console.log(`  🟠 Error:   ${summary.error}`);
+    console.log(`  🟡 Warning: ${summary.warning}`);
+    console.log(`  📁 Files:   ${scannedCount}`);
+    console.log('');
+    
+    if (allViolations.length > 0) {
+      console.log('⚠️  Violations Found');
+      console.log('─'.repeat(40));
+      
+      // Group by file
+      const byFile = {};
+      for (const v of allViolations) {
+        if (!byFile[v.file]) byFile[v.file] = [];
+        byFile[v.file].push(v);
+      }
+      
+      for (const [file, violations] of Object.entries(byFile)) {
+        const relativePath = path.relative(process.cwd(), file);
+        console.log(`\n📄 ${relativePath}`);
+        for (const v of violations) {
+          const emoji = v.severity === 'critical' ? '🔴' : v.severity === 'error' ? '🟠' : '🟡';
+          console.log(`  ${emoji} Line ${v.line}: [${v.name}] ${v.match}`);
+          console.log(`      ${v.description}`);
+        }
+      }
+    } else {
+      console.log('✅ No violations found!');
+    }
+  }
+  
+  // Exit code based on severity
+  if (summary.critical > 0 || summary.error > 0) {
+    process.exit(1);
+  }
+  
+  return allViolations;
+}
+
+// CLI parsing
+const args = process.argv.slice(2);
+const options = {
+  format: 'text',
+  output: null,
+  fix: false
+};
+
+for (const arg of args) {
+  if (arg.startsWith('--format=')) {
+    options.format = arg.split('=')[1];
+  } else if (arg.startsWith('--output=')) {
+    options.output = arg.split('=')[1];
+  } else if (arg === '--fix') {
+    options.fix = true;
+  } else if (arg === '--help') {
+    console.log(`
+Hardcoded Scanner CLI
+
+Usage: node hardcoded-scanner.js [options]
+
+Options:
+  --format=json|text    Output format (default: text)
+  --output=path         Save report to file
+  --fix                 Attempt to fix violations (not implemented)
+  --help                Show this help message
+
+Exit codes:
+  0 - No violations or only warnings
+  1 - Critical or error violations found
+  2 - Scan execution failed
+`);
     process.exit(0);
   }
-  
-  // 分組輸出
-  const errors = results.filter(r => r.severity === 'error');
-  const warnings = results.filter(r => r.severity === 'warning');
-  
-  if (outputFormat === 'json') {
-    console.log(JSON.stringify({ errors, warnings, total: results.length }, null, 2));
-  } else {
-    if (errors.length > 0) {
-      console.log(`\n❌ 錯誤 (${errors.length}):`);
-      errors.forEach(e => {
-        console.log(`  ${e.file}:${e.line}`);
-        console.log(`    → ${e.message}`);
-        console.log(`    → ${e.content}`);
-      });
-    }
-    
-    if (warnings.length > 0) {
-      console.log(`\n⚠️ 警告 (${warnings.length}):`);
-      warnings.forEach(w => {
-        console.log(`  ${w.file}:${w.line}`);
-        console.log(`    → ${w.message}`);
-      });
-    }
-    
-    console.log(`\n📊 總計: ${errors.length} 錯誤, ${warnings.length} 警告`);
-  }
-  
-  process.exit(errors.length > 0 ? 1 : 0);
 }
 
-main();
+try {
+  scan(options);
+} catch (error) {
+  console.error('❌ Scan failed:', error.message);
+  process.exit(2);
+}
