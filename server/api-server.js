@@ -3,7 +3,7 @@ const { exec, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 18789;
+const PORT = process.env.PORT || 3001;
 const LOG_DIR = path.join(process.cwd(), 'logs');
 const AGENT_LOG_FILE = path.join(LOG_DIR, 'agent-activity.log');
 const REPO_OWNER = 'ks885522';
