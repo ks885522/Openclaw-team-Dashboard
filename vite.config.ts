@@ -12,19 +12,19 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/github/, ''),
       },
       '/api/sessions': {
-        target: 'http://localhost:18789',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/api/performance': {
-        target: 'http://localhost:18789',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/api/scores': {
-        target: 'http://localhost:18789',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/api/agent': {
-        target: 'http://localhost:18789',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
