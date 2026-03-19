@@ -28,6 +28,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Install missing system dependencies
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 || true
+
       - name: Run E2E tests
         run: npm run test:e2e -- --reporter=line
         env:
@@ -79,27 +84,27 @@ jobs:
               summary += '無法讀取測試結果\n';
             }
             
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
+            // Find existing PR comment
+            const { data: comments } = await github.rest.pulls.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              pull_number: context.issue.number,
             });
-            
+
             const e2eComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('E2E 測試結果'));
-            
+
             if (e2eComment) {
-              await github.rest.issues.updateComment({
+              await github.rest.pulls.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: e2eComment.id,
                 body: summary,
               });
             } else {
-              await github.rest.issues.createComment({
+              await github.rest.pulls.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                pull_number: context.issue.number,
                 body: summary,
               });
             }
