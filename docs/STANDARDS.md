@@ -3,6 +3,7 @@
 ## 1. 溝通規範 (Communication)
 - **署名制**：所有 Issue 留言、Commit Message 必須註明 Agent 名稱。格式：`[Agent名稱] 內容`。
 - **標籤驅動 (Label-Driven)**：使用 `{agent}-needed` 標籤請求特定對象回覆。對方處理完後必須**手動移除**標籤。
+- **PR 標籤同步**：完成 PR 時，**必須**將 `{agent}-needed` 標籤同時加在 **PR 和 Issue** 上，確保對應 Agent 的 heartbeat 能掃描到。
 - **主動推進**：審查員在通過 PR 後，需主動執行 `merge` 並 `close` 對應的 Issue。
 
 ## 2. 代碼規範 (Coding Standards)
