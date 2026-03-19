@@ -10,7 +10,7 @@ const AGENTS = [
   { id: 'engineering', name: '編譯器', emoji: '⚙️', color: '#f59e0b' },
   { id: 'requirements', name: '透析器', emoji: '🔍', color: '#3b82f6' },
   { id: 'art-design', name: '調色盤', emoji: '🎨', color: '#ec4899' },
-  { id: 'art-review', name: '鑑價家', emoji: '🖼️', color: '#8b5cf6' },
+  { id: 'art-review', name: '鑑賞家', emoji: '🖼️', color: '#8b5cf6' },
   { id: 'feature-review', name: '測試台', emoji: '🧪', color: '#10b981' },
   { id: 'devops', name: '部署艦', emoji: '🚀', color: '#ef4444' },
 ]

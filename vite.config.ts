@@ -31,6 +31,14 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/api/tasks': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/trust-scores': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

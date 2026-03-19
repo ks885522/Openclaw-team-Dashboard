@@ -26,7 +26,7 @@ const AGENT_LABELS: Record<string, { name: string; emoji: string }> = {
   'engineering-needed': { name: '編譯器', emoji: '⚙️' },
   'requirements-needed': { name: '透析器', emoji: '🔍' },
   'art-design-needed': { name: '調色盤', emoji: '🎨' },
-  'art-review-needed': { name: '鑑價家', emoji: '🖼️' },
+  'art-review-needed': { name: '鑑賞家', emoji: '🖼️' },
   'func-review-needed': { name: '測試台', emoji: '🧪' },
   'devops-needed': { name: '部署艦', emoji: '🚀' },
   'design-needed': { name: '調色盤', emoji: '🎨' },
