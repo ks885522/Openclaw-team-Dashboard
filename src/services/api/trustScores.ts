@@ -1,5 +1,5 @@
 // Trust Score API service
-const API_BASE = 'http://localhost:18789';
+// Uses Vite proxy (relative path) - no hardcoded port
 
 export interface TrustScoreData {
   scores: Record<string, number>;
@@ -31,7 +31,7 @@ export interface TrustLeaderboardEntry {
 }
 
 export async function fetchTrustScores(): Promise<TrustScoreData> {
-  const response = await fetch(`${API_BASE}/api/trust-scores`);
+  const response = await fetch('/api/trust-scores');
   if (!response.ok) {
     throw new Error('Failed to fetch trust scores');
   }
@@ -39,7 +39,7 @@ export async function fetchTrustScores(): Promise<TrustScoreData> {
 }
 
 export async function fetchTrustLeaderboard(): Promise<TrustLeaderboardEntry[]> {
-  const response = await fetch(`${API_BASE}/api/trust-scores/leaderboard`);
+  const response = await fetch('/api/trust-scores/leaderboard');
   if (!response.ok) {
     throw new Error('Failed to fetch trust leaderboard');
   }
@@ -47,7 +47,7 @@ export async function fetchTrustLeaderboard(): Promise<TrustLeaderboardEntry[]> 
 }
 
 export async function resetTrustScores(): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/trust-scores/reset`, {
+  const response = await fetch('/api/trust-scores/reset', {
     method: 'POST'
   });
   if (!response.ok) {
