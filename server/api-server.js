@@ -1077,6 +1077,88 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'All scores reset' }));
     return;
+  } else if (req.url.startsWith('/api/dod-compliance') && req.method === 'GET') {
+    // DoD 合規率統計 API
+    // Query: days=30 (default), startDate, endDate
+    const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+    const days = parseInt(urlObj.searchParams.get('days') || '30');
+    const startDate = urlObj.searchParams.get('startDate');
+    const endDate = urlObj.searchParams.get('endDate');
+    
+    try {
+      // Calculate date range
+      const now = new Date();
+      let since, until;
+      
+      if (startDate && endDate) {
+        since = new Date(startDate);
+        until = new Date(endDate);
+      } else {
+        until = now;
+        since = new Date(now);
+        since.setDate(since.getDate() - days);
+      }
+      
+      const sinceStr = since.toISOString().split('T')[0];
+      const untilStr = until.toISOString().split('T')[0];
+      
+      // Query closed issues using gh
+      const closedIssuesCmd = `gh api repos/${REPO_OWNER}/${REPO_NAME}/issues?state=closed&per_page=100&sort=updated&direction=desc`;
+      const closedIssuesRaw = execSync(closedIssuesCmd, { encoding: 'utf-8' });
+      const allIssues = JSON.parse(closedIssuesRaw);
+      
+      // Filter issues by date and get their labels
+      const filteredIssues = allIssues.filter(issue => {
+        if (issue.pull_request) return false; // Skip PRs
+        const closedAt = new Date(issue.closed_at);
+        return closedAt >= since && closedAt <= until;
+      });
+      
+      // Count compliance
+      let artApproved = 0;
+      let funcApproved = 0;
+      let bothApproved = 0;
+      const issues = filteredIssues.map(issue => {
+        const labels = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+        const hasArtApproved = labels.includes('art-approved');
+        const hasFuncApproved = labels.includes('func-approved');
+        
+        if (hasArtApproved) artApproved++;
+        if (hasFuncApproved) funcApproved++;
+        if (hasArtApproved && hasFuncApproved) bothApproved++;
+        
+        return {
+          number: issue.number,
+          title: issue.title,
+          closedAt: issue.closed_at,
+          labels: labels,
+          artApproved: hasArtApproved,
+          funcApproved: hasFuncApproved,
+          compliant: hasArtApproved && hasFuncApproved
+        };
+      });
+      
+      const totalClosed = filteredIssues.length;
+      const complianceRate = totalClosed > 0 ? (bothApproved / totalClosed * 100).toFixed(1) : 0;
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        period: { since: sinceStr, until: untilStr, days },
+        summary: {
+          totalClosed,
+          artApproved,
+          funcApproved,
+          bothApproved,
+          complianceRate: parseFloat(complianceRate)
+        },
+        issues: issues.slice(0, 50)
+      }));
+    } catch (err) {
+      console.error('[DoD Compliance] Error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
   } else if (req.url.startsWith('/api/webhooks/github') && req.method === 'POST') {
     // GitHub webhook endpoint for PR events
     let body = '';

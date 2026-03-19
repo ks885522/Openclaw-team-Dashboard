@@ -12,6 +12,7 @@ import { PromptInjectionPanel } from './components/PromptInjection'
 import { ActivityTimeline } from './components/ActivityTimeline'
 import { WorkflowTopology } from './components/WorkflowTopology'
 import { ThinkingChainDisplay } from './components/ThinkingChainDisplay'
+import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
 
@@ -56,7 +57,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'evidence'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -428,6 +429,12 @@ function App() {
               🧠 思考鏈
             </button>
             <button 
+              className={`nav-tab ${activeTab === 'dod' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dod')}
+            >
+              📋 DoD 合規
+            </button>
+            <button
               className={`nav-tab ${activeTab === 'evidence' ? 'active' : ''}`}
               onClick={() => setActiveTab('evidence')}
             >
@@ -668,6 +675,8 @@ function App() {
           <AlertHistory maxHeight="calc(100vh - 140px)" />
         ) : activeTab === 'thinking' ? (
           <ThinkingChainDisplay maxHeight="calc(100vh - 140px)" />
+        ) : activeTab === 'dod' ? (
+          <DoDComplianceDashboard />
         ) : activeTab === 'evidence' ? (
           <div style={{ padding: '20px' }}>
             <EvidenceComparison
