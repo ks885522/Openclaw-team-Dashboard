@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任務流轉拓撲圖 - 設計稿</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --border: #2A3444;
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      --agent-engineering: #f59e0b;
+      --agent-requirements: #3b82f6;
+      --agent-art-design: #ec4899;
+      --agent-art-review: #8b5cf6;
+      --agent-feature-review: #10b981;
+      --agent-devops: #ef4444;
+      --status-active: #10B981;
+      --status-blocked: #EF4444;
+      --status-pending: #F59E0B;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .header-title { font-size: 20px; font-weight: 700; }
+    .header-meta {
+      display: flex; gap: 16px; align-items: center;
+    }
+    .refresh-badge {
+      background: var(--bg-light); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 12px; color: var(--text-secondary);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .refresh-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--status-active);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .stat-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .stat-icon.issues { background: rgba(0, 102, 255, 0.15); }
+    .stat-icon.blocked { background: rgba(239, 68, 68, 0.15); }
+    .stat-icon.pending { background: rgba(245, 158, 11, 0.15); }
+    .stat-icon.active { background: rgba(16, 185, 129, 0.15); }
+    .stat-info .label {
+      font-size: 11px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .stat-info .value {
+      font-size: 24px; font-weight: 700;
+    }
+    .stat-info .sub {
+      font-size: 11px; color: var(--text-muted);
+    }
+    /* Flow Diagram Container */
+    .flow-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .flow-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .flow-header h3 {
+      font-size: 16px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .flow-legend {
+      display: flex; gap: 16px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .legend-dot.blocked { background: var(--status-blocked); }
+    .legend-dot.pending { background: var(--status-pending); }
+    .legend-dot.active { background: var(--status-active); }
+    /* Agent Flow Grid */
+    .agent-flow-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .agent-node {
+      background: var(--bg-light);
+      border: 2px solid var(--agent-color);
+      border-radius: 12px;
+      padding: 16px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .agent-node:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .agent-node.highlighted {
+      background: var(--agent-color);
+      opacity: 0.15;
+    }
+    .agent-node .emoji { font-size: 28px; margin-bottom: 8px; }
+    .agent-node .name { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .agent-node .count {
+      font-size: 20px; font-weight: 700;
+      color: var(--agent-color);
+    }
+    .agent-node .badge {
+      position: absolute; top: -6px; right: -6px;
+      background: var(--status-blocked);
+      color: white; font-size: 10px; font-weight: 700;
+      padding: 2px 6px; border-radius: 10px;
+    }
+    /* Connection Lines SVG */
+    .flow-diagram {
+      position: relative;
+      height: 300px;
+      background: var(--bg-dark);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .flow-diagram svg {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    /* Issue Cards in Flow */
+    .issue-card {
+      position: absolute;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 160px;
+    }
+    .issue-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 16px rgba(0, 102, 255, 0.2);
+      z-index: 10;
+    }
+    .issue-card.blocked { border-left: 3px solid var(--status-blocked); }
+    .issue-card.pending { border-left: 3px solid var(--status-pending); }
+    .issue-card.active { border-left: 3px solid var(--status-active); }
+    .issue-card-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+    }
+    .issue-number {
+      font-size: 10px; font-weight: 600;
+      background: var(--bg-light);
+      padding: 2px 6px; border-radius: 4px;
+      color: var(--text-secondary);
+    }
+    .issue-status {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .issue-status.blocked { background: rgba(239,68,68,0.2); color: var(--status-blocked); }
+    .issue-status.pending { background: rgba(245,158,11,0.2); color: var(--status-pending); }
+    .issue-status.active { background: rgba(16,185,129,0.2); color: var(--status-active); }
+    .issue-title {
+      font-size: 12px; font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+    .issue-agents {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .agent-tag {
+      font-size: 10px; padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.1);
+    }
+    /* Flow Arrow */
+    .flow-arrow {
+      position: absolute;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+    }
+    .arrow-line {
+      width: 2px; height: 40px;
+      background: linear-gradient(to bottom, var(--primary), var(--accent));
+    }
+    .arrow-head {
+      width: 0; height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 8px solid var(--accent);
+    }
+    /* Agent Detail Panel */
+    .agent-detail-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-agent {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .panel-agent .emoji { font-size: 32px; }
+    .panel-agent .info .name { font-size: 16px; font-weight: 600; }
+    .panel-agent .info .role { font-size: 12px; color: var(--text-secondary); }
+    .close-btn {
+      background: var(--bg-light); border: 1px solid var(--border);
+      border-radius: 8px; width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary);
+    }
+    .panel-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; margin-bottom: 16px;
+    }
+    .panel-stat {
+      background: var(--bg-light); border-radius: 8px; padding: 12px;
+      text-align: center;
+    }
+    .panel-stat .val { font-size: 20px; font-weight: 700; }
+    .panel-stat .lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+    /* Issue List in Panel */
+    .issue-list { display: flex; flex-direction: column; gap: 8px; }
+    .issue-list-item {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .issue-list-item:hover { border-color: var(--primary); }
+    .issue-list-item .num {
+      font-size: 11px; font-weight: 600;
+      background: var(--bg-dark); padding: 4px 8px;
+      border-radius: 6px; color: var(--text-secondary);
+    }
+    .issue-list-item .title { flex: 1; font-size: 13px; }
+    .issue-list-item .status {
+      font-size: 10px; font-weight: 600;
+      padding: 3px 8px; border-radius: 4px;
+    }
+    .issue-list-item .status.blocked { background: rgba(239,68,68,0.2); color: var(--status-blocked); }
+    .issue-list-item .status.pending { background: rgba(245,158,11,0.2); color: var(--status-pending); }
+    .issue-list-item .agents { display: flex; gap: 4px; }
+    .issue-list-item .agents span { font-size: 14px; }
+    /* Design Spec */
+    .design-spec {
+      margin-top: 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .design-spec h4 {
+      font-size: 14px; font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+    .spec-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .spec-item { }
+    .spec-item .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .spec-item .value { font-size: 13px; font-weight: 500; }
+    .color-swatch {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .color-swatch .swatch {
+      width: 16px; height: 16px; border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">🔗</div>
+      <div class="header-title">任務流轉拓撲圖</div>
+    </div>
+    <div class="header-meta">
+      <div class="refresh-badge">
+        <span class="refresh-dot"></span>
+        每 60 秒自動刷新
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-icon issues">📋</div>
+      <div class="stat-info">
+        <div class="label">待處理 Issue</div>
+        <div class="value">12</div>
+        <div class="sub">需要 agent 回應</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon blocked">🚫</div>
+      <div class="stat-info">
+        <div class="value" style="color: var(--status-blocked)">3</div>
+        <div class="label">被阻塞</div>
+        <div class="sub">等待依賴完成</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon pending">⏳</div>
+      <div class="stat-info">
+        <div class="value" style="color: var(--status-pending)">7</div>
+        <div class="label">等待中</div>
+        <div class="sub">已派發待處理</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon active">✅</div>
+      <div class="stat-info">
+        <div class="value" style="color: var(--status-active)">5</div>
+        <div class="label">進行中</div>
+        <div class="sub">主動處理</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Nodes -->
+  <div class="flow-container">
+    <div class="flow-header">
+      <h3>🔗 Agent 節點</h3>
+      <div class="flow-legend">
+        <div class="legend-item"><span class="legend-dot blocked"></span> 被阻塞</div>
+        <div class="legend-item"><span class="legend-dot pending"></span> 等待中</div>
+        <div class="legend-item"><span class="legend-dot active"></span> 進行中</div>
+      </div>
+    </div>
+    <div class="agent-flow-grid">
+      <div class="agent-node" style="--agent-color: var(--agent-engineering)">
+        <div class="emoji">⚙️</div>
+        <div class="name">編譯器</div>
+        <div class="count">4</div>
+        <div class="badge">2</div>
+      </div>
+      <div class="agent-node" style="--agent-color: var(--agent-requirements)">
+        <div class="emoji">🔍</div>
+        <div class="name">透析器</div>
+        <div class="count">2</div>
+      </div>
+      <div class="agent-node highlighted" style="--agent-color: var(--agent-art-design)">
+        <div class="emoji">🎨</div>
+        <div class="name">調色盤</div>
+        <div class="count">1</div>
+      </div>
+      <div class="agent-node" style="--agent-color: var(--agent-art-review)">
+        <div class="emoji">🖼️</div>
+        <div class="name">鑑價家</div>
+        <div class="count">3</div>
+        <div class="badge">1</div>
+      </div>
+      <div class="agent-node" style="--agent-color: var(--agent-feature-review)">
+        <div class="emoji">🧪</div>
+        <div class="name">測試台</div>
+        <div class="count">5</div>
+        <div class="badge">3</div>
+      </div>
+      <div class="agent-node" style="--agent-color: var(--agent-devops)">
+        <div class="emoji">🚀</div>
+        <div class="name">部署艦</div>
+        <div class="count">0</div>
+      </div>
+    </div>
+
+    <!-- Flow Diagram -->
+    <div class="flow-diagram">
+      <svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid meet">
+        <!-- Connection Lines -->
+        <defs>
+          <linearGradient id="lineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#0066FF;stop-opacity:0.8" />
+            <stop offset="100%" style="stop-color:#00D4FF;stop-opacity:0.8" />
+          </linearGradient>
+        </defs>
+        <!-- SVG Arrows connecting nodes -->
+        <path d="M 100 60 Q 300 60 400 120" stroke="url(#lineGrad)" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+        <path d="M 200 60 Q 400 80 500 120" stroke="url(#lineGrad)" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+        <path d="M 400 60 Q 500 80 600 120" stroke="url(#lineGrad)" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+        <path d="M 600 60 Q 700 80 800 120" stroke="url(#lineGrad)" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+        <path d="M 800 60 Q 900 80 1000 120" stroke="url(#lineGrad)" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+        <path d="M 150 180 L 300 220" stroke="var(--status-pending)" stroke-width="2" fill="none"/>
+        <path d="M 350 180 L 500 220" stroke="var(--status-pending)" stroke-width="2" fill="none"/>
+        <path d="M 550 180 L 700 220" stroke="var(--status-blocked)" stroke-width="2" fill="none"/>
+        <path d="M 750 180 L 900 220" stroke="var(--status-active)" stroke-width="2" fill="none"/>
+      </svg>
+      <!-- Issue Cards -->
+      <div class="issue-card pending" style="left: 40px; top: 180px;">
+        <div class="issue-card-header">
+          <span class="issue-number">#183</span>
+          <span class="issue-status pending">等待中</span>
+        </div>
+        <div class="issue-title">任務流轉拓撲圖</div>
+        <div class="issue-agents">
+          <span class="agent-tag" style="background: rgba(245,158,11,0.2)">⚙️</span>
+          <span class="agent-tag" style="background: rgba(139,92,246,0.2)">🖼️</span>
+        </div>
+      </div>
+      <div class="issue-card blocked" style="left: 260px; top: 180px;">
+        <div class="issue-card-header">
+          <span class="issue-number">#187</span>
+          <span class="issue-status blocked">被阻塞</span>
+        </div>
+        <div class="issue-title">誠信評分 Trust Score</div>
+        <div class="issue-agents">
+          <span class="agent-tag" style="background: rgba(0,102,255,0.2)">🔍</span>
+        </div>
+      </div>
+      <div class="issue-card pending" style="left: 480px; top: 180px;">
+        <div class="issue-card-header">
+          <span class="issue-number">#185</span>
+          <span class="issue-status pending">等待中</span>
+        </div>
+        <div class="issue-title">進度預測 Prediction</div>
+        <div class="issue-agents">
+          <span class="agent-tag" style="background: rgba(16,185,129,0.2)">🧪</span>
+        </div>
+      </div>
+      <div class="issue-card active" style="left: 700px; top: 180px;">
+        <div class="issue-card-header">
+          <span class="issue-number">#181</span>
+          <span class="issue-status active">進行中</span>
+        </div>
+        <div class="issue-title">自動調頻建議引擎</div>
+        <div class="issue-agents">
+          <span class="agent-tag" style="background: rgba(245,158,11,0.2)">⚙️</span>
+        </div>
+      </div>
+      <div class="issue-card pending" style="left: 920px; top: 180px;">
+        <div class="issue-card-header">
+          <span class="issue-number">#188</span>
+          <span class="issue-status pending">等待中</span>
+        </div>
+        <div class="issue-title">負面反饋整合</div>
+        <div class="issue-agents">
+          <span class="agent-tag" style="background: rgba(139,92,246,0.2)">🖼️</span>
+          <span class="agent-tag" style="background: rgba(16,185,129,0.2)">🧪</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Detail Panel (shown when agent is clicked) -->
+  <div class="agent-detail-panel">
+    <div class="panel-header">
+      <div class="panel-agent">
+        <div class="emoji">⚙️</div>
+        <div class="info">
+          <div class="name">編譯器</div>
+          <div class="role">engineering — 負責功能實作</div>
+        </div>
+      </div>
+      <div class="close-btn">✕</div>
+    </div>
+    <div class="panel-stats">
+      <div class="panel-stat">
+        <div class="val">4</div>
+        <div class="lbl">待處理</div>
+      </div>
+      <div class="panel-stat">
+        <div class="val" style="color: var(--status-blocked)">2</div>
+        <div class="lbl">被阻塞</div>
+      </div>
+      <div class="panel-stat">
+        <div class="val">3</div>
+        <div class="lbl">已完成</div>
+      </div>
+    </div>
+    <div class="issue-list">
+      <div class="issue-list-item">
+        <span class="num">#183</span>
+        <span class="title">任務流轉拓撲圖</span>
+        <span class="status pending">等待中</span>
+        <div class="agents"><span>🎨</span><span>🖼️</span></div>
+      </div>
+      <div class="issue-list-item">
+        <span class="num">#181</span>
+        <span class="title">自動調頻建議引擎</span>
+        <span class="status active">進行中</span>
+        <div class="agents"><span>🔍</span></div>
+      </div>
+      <div class="issue-list-item">
+        <span class="num">#187</span>
+        <span class="title">誠信評分 Trust Score</span>
+        <span class="status blocked">被阻塞</span>
+        <div class="agents"><span>🔍</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design Spec -->
+  <div class="design-spec">
+    <h4>🎨 設計規範</h4>
+    <div class="spec-grid">
+      <div class="spec-item">
+        <div class="label">主題</div>
+        <div class="value">深色模式 (Dark Mode)</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">主色</div>
+        <div class="color-swatch">
+          <span class="swatch" style="background: #0066FF"></span>
+          <span>#0066FF (Primary)</span>
+        </div>
+      </div>
+      <div class="spec-item">
+        <div class="label">強調色</div>
+        <div class="color-swatch">
+          <span class="swatch" style="background: #00D4FF"></span>
+          <span>#00D4FF (Accent)</span>
+        </div>
+      </div>
+      <div class="spec-item">
+        <div class="label">Agent 色系</div>
+        <div class="value">每個 Agent 獨立色彩</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">間距</div>
+        <div class="value">8px 網格系統</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">圓角</div>
+        <div class="value">8-12px</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">Agent 節點</div>
+        <div class="value">6 列格點佈局</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">連接線</div>
+        <div class="value">SVG 漸層虛線</div>
+      </div>
+      <div class="spec-item">
+        <div class="label">字體</div>
+        <div class="value">Inter, 12-16px</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
