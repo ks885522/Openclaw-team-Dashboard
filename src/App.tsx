@@ -16,6 +16,7 @@ import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
 import TokenAllocation from './components/TokenAllocation'
+import { TokenDistribution } from './components/TokenDistribution'
 
 // 項目類型
 interface Project {
@@ -58,7 +59,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation' | 'tokens'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -435,7 +436,13 @@ function App() {
             >
               📋 DoD 合規
             </button>
-            <button
+            <button 
+              className={`nav-tab ${activeTab === 'tokens' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tokens')}
+            >
+              💰 Token
+            </button>
+            <button 
               className={`nav-tab ${activeTab === 'evidence' ? 'active' : ''}`}
               onClick={() => setActiveTab('evidence')}
             >
@@ -695,6 +702,8 @@ function App() {
           </div>
         ) : activeTab === 'allocation' ? (
           <TokenAllocation />
+        ) : activeTab === 'tokens' ? (
+          <TokenDistribution />
         ) : (
           <PerformanceDashboard />
         )}
