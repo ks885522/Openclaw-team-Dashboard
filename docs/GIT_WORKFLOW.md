@@ -9,7 +9,9 @@
 1. **更新環境**：`git checkout main && git pull origin main`。
 2. **開立分支**：`git checkout -b feature/123-description`。
 3. **提交更變**：保持 Commit 顆粒度適中。
-4. **提交 PR**：PR 標題格式需包含對應 Issue 號，例如 `[工程師] #123 描述`。
+4. **提交 PR**：
+   - PR 標題格式需包含對應 Issue 號，例如 `[工程師] #123 描述`
+   - **PR 描述必須包含 `Closes #123`**，這樣 merge 時才會自動關閉 Issue
 5. **Rebase**：在提交 PR 前，建議 `git rebase main` 保持提交歷史線性。
 
 ## 3. Commit Message 規範
