@@ -118,60 +118,111 @@
 
 ---
 
-## 日期: 2026-03-20 (15:49)
+## 日期: 2026-03-20 (13:12)
 
-### 執行結果: ⚠️ 網路連線問題（GitHub API 持續中斷 → 第4次確認）
+### 執行結果: ⚠️ GitHub API 完全中斷（持續）
 
-**問題**: GitHub API 完全不可達
+**問題**: GitHub API 仍完全無法連線
 - `gh pr list` → error connecting to api.github.com
-- `gh issue list` → error connecting to api.github.com
-- `git fetch origin` ✅ 成功（SSH 22埠可達）
-- `web_fetch https://api.github.com/...` → EAI_AGAIN (DNS lookup failed)
-- 瀏覽器打開 GitHub → timed out
+- `gh issue list` → error connecting to api.github.com  
+- curl https://github.com → 連線逾時
+- curl https://api.github.com → 連線逾時
+- `git fetch origin` → ✅ 成功（SSH 可達）
+- DNS: github.com / api.github.com 解析逾時
+
+**重要發現：Port 3001 服務識別**
+- Port 3001 實際運行的是 **Tobi-Web-App** (Next.js dev server)，標題為 "Chat & Learn with Toby"
+- OpenClaw Dashboard 目前運行於 **Port 28080**（Vite preview mode）
+- `scripts/dev-server.sh` 預設 port 為 18789 或 3002，非 3001
 
 **本地環境狀態**:
 - ✅ 本地分支 main 與 origin/main 一致
-- ✅ OpenClaw 瀏覽器已啟動
-- ⚠️ GitHub API/HTTPS 完全不可達（443埠 DNS 解析失敗）
-- ⚠️ 無法執行任何 `gh` 操作
+- ✅ Vite preview 運行於 127.0.0.1:28080（OpenClaw Dashboard，HTTP 200）
+- ✅ Dashboard 完整加載：7 個 Agent 狀態卡、導航、功能區塊皆正常
+- ✅ Chromium 瀏覽器可正常開啟頁面
+- ⚠️ GitHub API 完全中斷，無法查詢/回覆 PR
 
-**診斷結果**:
-- 這是 WSL2 網路配置問題，導致 DNS 解析 api.github.com 持續失敗
-- SSH (port 22) 正常，但 HTTPS API (port 443) DNS 解析失敗
-- 問題已持續至少 48 小時（自 2026-03-19 起）
+**Dashboard 現況（main 分支）**:
+- 所有 7 個 Agent 顯示「離線 等待新任務...」
+- 導航列正常：監控台、績效看板、積分榜、依賴拓撲、活動時間軸、警報歷史、思考鏈、DoD 合規、證據對比、Token分配
+- 成本監控區顯示「暫無成本數據」（預期行為）
 
-**結論**: 本輪審查因 GitHub API 網路問題無法執行。建議：
-1. 重啟 WSL2：`wsl --shutdown` 後重新啟動
-2. 或在 Windows 主機上修復 DNS 配置
-3. 網路恢復後重新掃描待審查項目。
+**無法執行的操作（GitHub API 中斷）**:
+- ❌ 無法查詢 `func-review-needed` 標籤的 issue
+- ❌ 無法 checkout PR branch 進行功能測試
+- ❌ 無法在 PR 留言 `[測試台]` 署名結果
+- ❌ 無法添加 `func-approved` 標籤
+- ❌ 無法執行 PR merge（需 qa-verified）
+
+**結論**: 網路中斷持續，所有 PR 審查工作無法推進。待 GitHub API 恢復後，可立即執行以下待測試 PR（根據 2026-03-20 01:10 快照）：
+- PR #206 feature/185-progress-prediction
+- PR #204 design/183-flow-topology
+- PR #202 design/token-consumption-allocation
+- PR #199 feature/179-token-distribution（上次失敗，等待 ⚙️ 編譯器 修復 scope bug）
+- PR #198 feature/183-flow-visualization
+- PR #197 feature/181-auto-frequency-tuning
+- PR #195 feature/187-trust-score
 
 
 ---
 
-## 日期: 2026-03-20 (12:05)
+## 日期: 2026-03-20 (15:25)
 
-### 執行結果: ⚠️ 網路連線問題（GitHub API 持續中斷）
+### 執行結果: ⚠️ GitHub API 完全中斷（持續）
 
-**問題**: 無法連接 GitHub API（443 埠/HTTPS）
-- `gh pr list` 逾時：error connecting to api.github.com
-- `gh issue list` 逾時：error connecting to api.github.com
-- `git fetch origin` ✅ 成功（SSH 22 埠可達）
-- `git ls-remote --heads origin` ✅ 成功，確認 56+ 個未合併分支
+**問題**: GitHub API 仍完全無法連線
+- `gh pr list` → error connecting to api.github.com
+- `gh issue list` → error connecting to api.github.com
+- curl https://github.com → 連線逾時
+- `git fetch origin` → ✅ 成功（SSH 可達）
 
 **本地環境狀態**:
 - ✅ 本地分支 main 與 origin/main 一致
-- ✅ OpenClaw 瀏覽器可用
-- ⚠️ GitHub API 不可達（443 埠 DNS 解析失敗）
-- ⚠️ 無法執行任何 `gh` 操作（PR 查詢/留言/標籤更新）
+- ✅ dist/ 構建產物存在（assets/ + index.html）
+- ⚠️ Vite 開發伺服器未運行（無 localhost:28080/3000）
+- ⚠️ GitHub API 完全中斷，無法查詢/回覆 PR
 
-**已嘗試的診斷**:
-1. `curl -s --max-time 5 https://github.com` → 連線超時
-2. `gh api rate_limit` → error connecting to api.github.com
-3. DNS 解析 api.github.com → 逾時（但 git@github.com SSH 可達）
+**無法執行的操作（GitHub API 中斷）**:
+- ❌ 無法查詢 `func-review-needed` 標籤的 issue
+- ❌ 無法 checkout PR branch 進行功能測試
+- ❌ 無法在 PR 留言 `[測試台]` 署名結果
+- ❌ 無法添加 `func-approved` 標籤
 
-**根本原因分析**:
-- WSL2 環境中，HTTPS 流量（443 埠）DNS 解析失敗
-- 但 SSH（22 埠）流量正常，推測是 WSL2 網路配置問題
+**結論**: 網路中斷持續，所有 PR 審查工作無法推進。
 
-**結論**: 本輪審查因 GitHub API 網路問題無法執行。無法查詢 PR、無法留言、無法更新標籤。
-待網路恢復後重新掃描待審查項目。
+---
+
+## 日期: 2026-03-20 (20:10)
+
+### 執行結果: ⚠️ GitHub API 持續中斷，無法執行 PR 審查
+
+**網路狀態**:
+- ❌ GitHub API (api.github.com:443) 持續無法連線
+- ✅ git fetch origin（SSH port 22）正常
+- ✅ Dashboard (port 28080) 正常運行
+
+**本地 Dashboard 狀態（main 分支）**:
+- ✅ Vite preview 正常運行於 127.0.0.1:28080
+- ✅ 首頁完整加載：7 個 Agent 狀態卡顯示「離線 等待新任務...」
+- ✅ 導航列正常：監控台、績效看板、積分榜、依賴拓撲、活動時間軸、警報歷史、思考鏈、DoD 合規、證據對比、Token分配
+- ✅ 進行中項目：前端頁面開發 - Dashboard 介面（⚙️ 編譯器）、Agent 狀態 API 串接（⚙️ 編譯器）
+- ✅ 已完成項目正常顯示
+- ✅ 成本監控正常（暫無成本數據，預期行為）
+
+**無法執行的操作（GitHub API 中斷）**:
+- ❌ 無法查詢 `func-review-needed` 標籤的 issue
+- ❌ 無法 checkout PR branch 進行功能測試
+- ❌ 無法在 PR 留言 `[測試台]` 署名結果
+- ❌ 無法添加 `func-approved` 標籤
+- ❌ 無法執行 PR merge
+
+**待測試 PR 列表（根據歷史快照，GitHub API 恢復後優先處理）**:
+- PR #206 feature/185-progress-prediction
+- PR #204 design/183-flow-topology
+- PR #202 design/token-consumption-allocation
+- PR #199 feature/179-token-distribution（等待 ⚙️ 編譯器 修復 scope bug）
+- PR #198 feature/183-flow-visualization
+- PR #197 feature/181-auto-frequency-tuning
+- PR #195 feature/187-trust-score
+
+**結論**: 網路中斷已持續超過 27 小時（自 2026-03-19 起）。所有 PR 審查工作無法推進。需修復 WSL2 DNS/443 端口問題後重新掃描。
