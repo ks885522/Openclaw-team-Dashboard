@@ -3,18 +3,20 @@
 ## 部署時間
 2026-03-16
 
-## 服務狀態 (2026-03-21 15:48)
+## 服務狀態 (2026-03-21 19:59)
 
 | 服務 | Port | 狀態 |
 |------|------|------|
 | 穩定預覽環境 | 28080 | ✅ 運行中 (HTTP 200) |
-| API 服務 | 3001 | ✅ 運行中 (HTTP 200) |
-| Dashboard Frontend (Vite Dev) | 3000 | ✅ 運行中 (node) |
+| API 服務 | 3001 | ✅ 運行中 (Listening) |
+| Dashboard Frontend (Vite Dev) | 3000 | ⚠️ 未運行 |
 | Engineering Dev | 3002 | ⚠️ 未運行 |
 | Art-Design Dev | 3003 | ⚠️ 未運行 |
 | Feature-Review Dev | 3004 | ⚠️ 未運行 |
 
 ## 最新問題修復
+- 2026-03-21 19:59: 定期健康檢查 - 預覽環境 (port 28080) HTTP 200 ✅，API (port 3001) 運行中 ✅，GitHub 網路連線異常 ⚠️
+- 2026-03-21 18:44: 定期健康檢查 - 服務已停止，重新啟動預覽環境 (port 28080) ✅ 和 API (port 3001) ✅，GitHub 網路連線異常 ⚠️
 - 2026-03-21 15:48: 定期健康檢查 - 預覽環境 (port 28080) HTTP 200 ✅，API (port 3001) 重新啟動 ✅，Dashboard Frontend (port 3000) 運行中 ✅，GitHub 網路連線異常 ⚠️
 - 2026-03-21 10:52: 定期健康檢查 - 預覽環境 (port 28080) HTTP 200 ✅，API (port 3001) 重新啟動 ✅，GitHub 網路連線異常 ⚠️
 - 2026-03-21 07:56: 定期健康檢查 - 預覽環境 (port 28080) HTTP 200 ✅，API (port 3001) 運行中 ✅，GitHub 網路連線異常 ⚠️
