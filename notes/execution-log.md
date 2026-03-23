@@ -592,3 +592,46 @@
 2. **Badge 語意輕微歧義**：`--status-busy` (#F59E0B) 在 Header Badge 表「待處理」，但此顏色在其他模組通常表「進行中」。不影響功能，建議未來考虑新增 `--status-pending` 色值。
 
 **標籤建議**: `art-approved` ✅
+
+---
+
+## 2026-03-24 01:21 UTC — 美術審查 #003
+
+**設計稿**: `design/visual-annotation-tool.html`
+**分支**: `origin/design/visual-annotation-tool`
+**Commit**: `ef562ca` — [調色盤] 添加截圖與標記工具 UI 設計稿 - Issue #68
+**關聯 Issue**: #68
+**審查方式**: 代碼審查（無截圖環境）
+
+### 審查結論: ❌ 需要修改
+
+#### 色彩系統: ❌ 嚴重偏離
+- Primary `#4F46E5` → 規範 `#0066FF` ❌
+- Secondary `#6B7280` → 規範 `#6B4EFF` ❌
+- 背景 `#FFFFFF` (亮色) → 規範 `#151B26` (暗色) ❌
+- 紫色漸層 body → 深色 Dashboard 主題 ❌
+
+#### 字體: ❌
+- 使用 `Segoe UI, Roboto` → 規範 `Inter` ❌
+
+#### 間距: ✅
+- 標題 28px ✅ / 正文 13-16px ✅ / 標籤 12px ✅
+- 8px 網格系統 ✅
+
+#### 組件: ✅ 功能完整
+- Toolbar（工具選擇/顏色/線條粗細/上一步下一步）✅
+- Canvas 上傳區域 ✅
+- Annotation 層（圓圈/文字標註）✅
+- Export 按鈕（複製/匯出）✅
+- Pulse 動畫 ✅
+
+### 必須修改
+1. 主題切換為暗色（`#151B26` 背景，`#FFFFFF` 文字）
+2. Primary → `#0066FF`，Secondary → `#6B4EFF`
+3. 字體改為 Inter
+4. 移除紫色漸層 body 背景
+
+### GitHub 留言
+- https://github.com/ks885522/Openclaw-team-Dashboard/commit/ef562ca44b675d907b61d100dbaac7da7cf6f2ec#commitcomment-180326077
+
+**標籤建議**: `art-review-needed`（重新提交時需附上）
