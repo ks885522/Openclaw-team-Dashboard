@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>臨時工管理面板 - OpenClaw Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Primary Colors */
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      
+      /* Background Colors */
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --border: #2A3444;
+      
+      /* Text Colors */
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      
+      /* Status Colors */
+      --status-idle: #10B981;
+      --status-busy: #F59E0B;
+      --status-offline: #EF4444;
+      --status-progress: #3B82F6;
+      --status-completed: #8B5CF6;
+      --status-terminated: #6B7280;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    
+    /* Header */
+    .header {
+      height: 64px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--text-primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .icon-btn:hover {
+      background: var(--primary);
+      color: var(--text-primary);
+      border-color: var(--primary);
+    }
+    
+    /* Tab Navigation */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .tab {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+    
+    .tab:hover {
+      background: var(--bg-light);
+      color: var(--text-primary);
+    }
+    
+    .tab.active {
+      background: var(--bg-light);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+    
+    /* Main Content */
+    .main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    
+    /* Panel Header */
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .panel-title {
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .panel-title-icon {
+      font-size: 28px;
+    }
+    
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--status-idle);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--status-idle);
+    }
+    
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--status-idle);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    
+    /* Action Bar */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    
+    .filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .filter-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    
+    .filter-select {
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    
+    .filter-select:hover, .filter-select:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    
+    .search-input {
+      padding: 8px 12px 8px 36px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+      width: 240px;
+      transition: border-color 0.2s;
+    }
+    
+    .search-input:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    
+    .search-wrapper {
+      position: relative;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+    
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: var(--text-primary);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+    }
+    
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--status-offline);
+      color: var(--status-offline);
+    }
+    
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    
+    .btn-secondary:hover {
+      border-color: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    /* Stats Row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .stat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    
+    .stat-icon.running {
+      background: rgba(16, 185, 129, 0.15);
+    }
+    
+    .stat-icon.stopped {
+      background: rgba(245, 158, 11, 0.15);
+    }
+    
+    .stat-icon.offline {
+      background: rgba(239, 68, 68, 0.15);
+    }
+    
+    .stat-icon.total {
+      background: rgba(59, 130, 246, 0.15);
+    }
+    
+    .stat-info {
+      flex: 1;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    /* Table */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .table th {
+      text-align: left;
+      padding: 14px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--bg-light);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .table th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .table th.sortable:hover {
+      color: var(--text-primary);
+    }
+    
+    .sort-icon {
+      margin-left: 4px;
+      opacity: 0.5;
+    }
+    
+    .table th.sorted .sort-icon {
+      opacity: 1;
+      color: var(--primary);
+    }
+    
+    .table td {
+      padding: 16px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    
+    .table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .table tr:hover {
+      background: rgba(0, 102, 255, 0.05);
+    }
+    
+    /* Worker Cell */
+    .worker-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .worker-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--secondary), var(--accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .worker-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .worker-name {
+      font-weight: 600;
+    }
+    
+    .worker-id {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    /* Status Badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .status-badge.running {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--status-idle);
+    }
+    
+    .status-badge.stopped {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--status-busy);
+    }
+    
+    .status-badge.offline {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--status-offline);
+    }
+    
+    .status-badge.terminated {
+      background: rgba(107, 114, 128, 0.15);
+      color: var(--status-terminated);
+    }
+    
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    
+    .status-badge.running .status-dot { background: var(--status-idle); animation: pulse 1.5s infinite; }
+    .status-badge.stopped .status-dot { background: var(--status-busy); }
+    .status-badge.offline .status-dot { background: var(--status-offline); }
+    .status-badge.terminated .status-dot { background: var(--status-terminated); }
+    
+    /* Port Badge */
+    .port-badge {
+      font-family: 'Monaco', 'Consolas', monospace;
+      padding: 4px 8px;
+      background: var(--bg-light);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--accent);
+    }
+    
+    /* Actions */
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+    
+    .action-btn:hover {
+      border-color: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    .action-btn.start:hover {
+      border-color: var(--status-idle);
+      color: var(--status-idle);
+    }
+    
+    .action-btn.stop:hover {
+      border-color: var(--status-busy);
+      color: var(--status-busy);
+    }
+    
+    .action-btn.delete:hover {
+      border-color: var(--status-offline);
+      color: var(--status-offline);
+    }
+    
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: var(--bg-light);
+      border-top: 1px solid var(--border);
+    }
+    
+    .page-info {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    
+    .page-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .page-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+    
+    .page-btn:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    .page-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    
+    .empty-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    .empty-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .empty-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    
+    /* Tooltip */
+    [title] {
+      position: relative;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .table {
+        font-size: 13px;
+      }
+      
+      .table th, .table td {
+        padding: 12px 10px;
+      }
+      
+      .worker-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .action-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .filters {
+        flex-direction: column;
+      }
+      
+      .search-input {
+        width: 100%;
+      }
+      
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">⚡</div>
+      <h1 class="header-title">OpenClaw Team Dashboard</h1>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" title="重新整理">🔄</button>
+      <button class="icon-btn" title="設定">⚙️</button>
+    </div>
+  </header>
+  
+  <!-- Tab Navigation -->
+  <nav class="tabs">
+    <div class="tab">👥 Agent 團隊</div>
+    <div class="tab">📊 監控台</div>
+    <div class="tab">🏆 績效看板</div>
+    <div class="tab">🔗 依賴拓撲</div>
+    <div class="tab">⏱️ 活動時間軸</div>
+    <div class="tab active">👷 臨時工</div>
+  </nav>
+  
+  <!-- Main Content -->
+  <main class="main">
+    <!-- Panel Header -->
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="panel-title-icon">👷</span>
+        臨時工管理面板
+      </div>
+      <div class="live-badge">
+        <span class="live-dot"></span>
+        即時更新中
+      </div>
+    </div>
+    
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div class="filters">
+        <div class="filter-group">
+          <span class="filter-label">狀態</span>
+          <select class="filter-select">
+            <option value="">全部狀態</option>
+            <option value="running">運行中</option>
+            <option value="stopped">已停止</option>
+            <option value="offline">離線</option>
+            <option value="terminated">已終止</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">排序</span>
+          <select class="filter-select">
+            <option value="created-desc">創建時間 (新→舊)</option>
+            <option value="created-asc">創建時間 (舊→新)</option>
+            <option value="name-asc">名稱 (A→Z)</option>
+            <option value="name-desc">名稱 (Z→A)</option>
+          </select>
+        </div>
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" placeholder="搜尋臨時工名稱...">
+        </div>
+      </div>
+      <button class="btn btn-primary">
+        ➕ 新增臨時工
+      </button>
+    </div>
+    
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon running">🚀</div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: var(--status-idle)">3</div>
+          <div class="stat-label">運行中</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stopped">⏸️</div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: var(--status-busy)">2</div>
+          <div class="stat-label">已停止</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon offline">📴</div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: var(--status-offline)">1</div>
+          <div class="stat-label">離線</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon total">📋</div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: var(--status-progress)">6</div>
+          <div class="stat-label">總計</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Worker Table -->
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="sortable sorted">臨時工 <span class="sort-icon">▲</span></th>
+            <th class="sortable">狀態 <span class="sort-icon">⬆</span></th>
+            <th class="sortable">端口 <span class="sort-icon">⬆</span></th>
+            <th class="sortable">創建時間 <span class="sort-icon">⬆</span></th>
+            <th>元老成員</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar">🤖</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-alpha</div>
+                  <div class="worker-id">#TW-001</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge running"><span class="status-dot"></span>運行中</span></td>
+            <td><span class="port-badge">:18791</span></td>
+            <td>2026-03-22 14:30</td>
+            <td>⚙️ 編譯器</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn stop" title="停止">⏸️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar">🤖</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-beta</div>
+                  <div class="worker-id">#TW-002</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge running"><span class="status-dot"></span>運行中</span></td>
+            <td><span class="port-badge">:18792</span></td>
+            <td>2026-03-22 15:45</td>
+            <td>⚙️ 編譯器</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn stop" title="停止">⏸️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar">🤖</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-gamma</div>
+                  <div class="worker-id">#TW-003</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge running"><span class="status-dot"></span>運行中</span></td>
+            <td><span class="port-badge">:18793</span></td>
+            <td>2026-03-23 09:00</td>
+            <td>🎨 調色盤</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn stop" title="停止">⏸️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar" style="background: linear-gradient(135deg, #6B7280, #9CA3AF);">💤</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-delta</div>
+                  <div class="worker-id">#TW-004</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge stopped"><span class="status-dot"></span>已停止</span></td>
+            <td><span class="port-badge">:18794</span></td>
+            <td>2026-03-22 16:20</td>
+            <td>🔍 透析器</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn start" title="啟動">▶️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar" style="background: linear-gradient(135deg, #6B7280, #9CA3AF);">💤</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-epsilon</div>
+                  <div class="worker-id">#TW-005</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge stopped"><span class="status-dot"></span>已停止</span></td>
+            <td><span class="port-badge">:18795</span></td>
+            <td>2026-03-23 10:15</td>
+            <td>🖼️ 鑑識家</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn start" title="啟動">▶️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="worker-info">
+                <div class="worker-avatar" style="background: linear-gradient(135deg, #374151, #4B5563);">📴</div>
+                <div class="worker-details">
+                  <div class="worker-name">temp-worker-zeta</div>
+                  <div class="worker-id">#TW-006</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge offline"><span class="status-dot"></span>離線</span></td>
+            <td><span class="port-badge">:18796</span></td>
+            <td>2026-03-21 11:00</td>
+            <td>🚀 部署艦</td>
+            <td>
+              <div class="actions-cell">
+                <button class="action-btn start" title="啟動">▶️</button>
+                <button class="action-btn" title="詳情">🔍</button>
+                <button class="action-btn delete" title="終止">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="pagination">
+        <div class="page-info">顯示 1-6，共 6 筆</div>
+        <div class="page-controls">
+          <button class="page-btn" disabled>◀</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn" disabled>▶</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  
+  <script>
+    // Simulate real-time updates every 30 seconds
+    setInterval(() => {
+      console.log('Refreshing temporary worker statuses...');
+      const liveBadge = document.querySelector('.live-badge');
+      if (liveBadge) {
+        liveBadge.style.opacity = '0.7';
+        setTimeout(() => liveBadge.style.opacity = '1', 200);
+      }
+    }, 30000);
+    
+    // Sort functionality
+    document.querySelectorAll('.table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const table = th.closest('table');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const column = th.textContent.trim();
+        const isAsc = th.classList.contains('sorted-asc');
+        
+        // Remove sorted class from all headers
+        table.querySelectorAll('th.sortable').forEach(h => {
+          h.classList.remove('sorted', 'sorted-asc', 'sorted-desc');
+        });
+        
+        // Add sorted class and sort direction
+        th.classList.add('sorted', isAsc ? 'sorted-desc' : 'sorted-asc');
+        
+        // Sort rows
+        // Implementation would sort by column index
+        console.log(`Sorting by ${column} ${isAsc ? 'descending' : 'ascending'}`);
+      });
+    });
+  </script>
+</body>
+</html>
