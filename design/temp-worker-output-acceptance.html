@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>臨時工產出驗收 - OpenClaw Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --border: #2A3444;
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      --status-idle: #10B981;
+      --status-busy: #F59E0B;
+      --status-offline: #EF4444;
+      --status-progress: #3B82F6;
+      --pass: #10B981;
+      --revision: #F59E0B;
+      --fail: #EF4444;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    /* Header */
+    .header {
+      height: 64px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+    }
+    .header-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .header-title { font-size: 18px; font-weight: 600; flex: 1; }
+    .header-badge {
+      background: var(--status-busy);
+      color: #000;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-light);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--border); }
+    /* Layout */
+    .layout { display: flex; min-height: calc(100vh - 64px); }
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px;
+      flex-shrink: 0;
+    }
+    .sidebar-section { margin-bottom: 24px; }
+    .sidebar-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 8px;
+      margin-bottom: 8px;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .sidebar-item:hover { background: var(--bg-light); color: var(--text-primary); }
+    .sidebar-item.active { background: rgba(0,102,255,0.15); color: var(--primary); }
+    .sidebar-item .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sidebar-item .count {
+      margin-left: auto;
+      background: var(--bg-light);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .sidebar-item.active .count { background: rgba(0,102,255,0.25); color: var(--primary); }
+    .sidebar-divider { height: 1px; background: var(--border); margin: 16px 0; }
+    /* Main */
+    .main { flex: 1; padding: 24px; overflow-y: auto; }
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stat-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .stat-info { min-width: 0; }
+    .stat-value { font-size: 24px; font-weight: 700; line-height: 1.2; }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    /* Section */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title { font-size: 16px; font-weight: 600; }
+    .section-tabs { display: flex; gap: 4px; }
+    .tab {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: var(--text-primary); background: var(--bg-light); }
+    .tab.active { background: var(--primary); color: #fff; }
+    /* Output cards */
+    .output-list { display: flex; flex-direction: column; gap: 12px; }
+    .output-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .output-card:hover { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,102,255,0.1); }
+    .output-card.is-urgent { border-left: 3px solid var(--status-busy); }
+    .output-avatar {
+      width: 48px; height: 48px;
+      border-radius: 10px;
+      background: var(--bg-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .output-body { flex: 1; min-width: 0; }
+    .output-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .output-worker {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .output-task {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .output-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+    .meta-chip {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-light);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .meta-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .trust-badge {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .trust-high { background: rgba(16,185,129,0.15); color: var(--status-idle); }
+    .trust-medium { background: rgba(245,158,11,0.15); color: var(--status-busy); }
+    .trust-low { background: rgba(239,68,68,0.15); color: var(--status-offline); }
+    .output-preview {
+      margin-top: 10px;
+      padding: 12px;
+      background: var(--bg-light);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      border-left: 3px solid var(--secondary);
+      max-height: 80px;
+      overflow: hidden;
+      position: relative;
+    }
+    .output-preview::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 24px;
+      background: linear-gradient(transparent, var(--bg-light));
+    }
+    .output-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; justify-content: center; flex-shrink: 0; }
+    .action-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      transition: all 0.2s;
+      min-width: 100px;
+      justify-content: center;
+    }
+    .action-btn.pass { background: rgba(16,185,129,0.2); color: var(--pass); border: 1px solid rgba(16,185,129,0.3); }
+    .action-btn.pass:hover { background: var(--pass); color: #fff; }
+    .action-btn.revision { background: rgba(245,158,11,0.2); color: var(--revision); border: 1px solid rgba(245,158,11,0.3); }
+    .action-btn.revision:hover { background: var(--revision); color: #fff; }
+    .action-btn.fail { background: rgba(239,68,68,0.2); color: var(--fail); border: 1px solid rgba(239,68,68,0.3); }
+    .action-btn.fail:hover { background: var(--fail); color: #fff; }
+    /* History section */
+    .history-section { margin-top: 32px; }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .history-table th {
+      background: var(--bg-light);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .history-table td {
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border);
+    }
+    .history-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .result-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .result-badge.pass { background: rgba(16,185,129,0.15); color: var(--pass); }
+    .result-badge.revision { background: rgba(245,158,11,0.15); color: var(--revision); }
+    .result-badge.fail { background: rgba(239,68,68,0.15); color: var(--fail); }
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 560px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px; }
+    .modal-body { padding: 24px; }
+    .modal-section { margin-bottom: 20px; }
+    .modal-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .modal-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; padding: 20px 24px; border-top: 1px solid var(--border); }
+    .modal-actions .action-btn { flex: 1; }
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .output-card { flex-direction: column; }
+      .output-actions { flex-direction: row; align-items: center; justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-icon">📋</div>
+  <div class="header-title">臨時工產出驗收</div>
+  <div class="header-badge">3 待審</div>
+  <div class="header-actions">
+    <button class="btn" onclick="refresh()">⟳ 刷新</button>
+    <button class="btn" onclick="showHistory()">📜 驗收記錄</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">待驗收</div>
+      <div class="sidebar-item active">
+        <span class="dot" style="background:var(--status-busy)"></span>
+        待處理
+        <span class="count">3</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--status-offline)"></span>
+        緊急
+        <span class="count">1</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--status-progress)"></span>
+        已提交修訂
+        <span class="count">1</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">快速篩選</div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--pass)"></span>
+        通過
+        <span class="count">12</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--revision)"></span>
+        需修改
+        <span class="count">4</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--fail)"></span>
+        不合格
+        <span class="count">2</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">誠信評分</div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--status-idle)"></span>
+        高 (≥80)
+        <span class="count">5</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--status-busy)"></span>
+        中 (50-79)
+        <span class="count">6</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="dot" style="background:var(--status-offline)"></span>
+        低 (&lt;50)
+        <span class="count">1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,0.15)">⏳</div>
+        <div class="stat-info">
+          <div class="stat-value">3</div>
+          <div class="stat-label">待驗收</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(16,185,129,0.15)">✅</div>
+        <div class="stat-info">
+          <div class="stat-value">12</div>
+          <div class="stat-label">已通過</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,0.15)">❌</div>
+        <div class="stat-info">
+          <div class="stat-value">2</div>
+          <div class="stat-label">不合格</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(0,102,255,0.15)">⭐</div>
+        <div class="stat-info">
+          <div class="stat-value">78.4</div>
+          <div class="stat-label">平均誠信分</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending outputs -->
+    <div class="section-header">
+      <div class="section-title">⏳ 待驗收產出</div>
+      <div class="section-tabs">
+        <button class="tab active">全部</button>
+        <button class="tab">緊急</button>
+        <button class="tab">一般</button>
+      </div>
+    </div>
+
+    <div class="output-list">
+      <!-- Card 1: Urgent -->
+      <div class="output-card is-urgent" onclick="openModal(1)">
+        <div class="output-avatar">🤖</div>
+        <div class="output-body">
+          <div class="output-top">
+            <div class="output-worker">temp-worker-alpha-03</div>
+            <span class="trust-badge trust-low">⭐ 42</span>
+            <span style="font-size:12px;color:var(--status-offline);background:rgba(239,68,68,0.15);padding:3px 8px;border-radius:6px;font-weight:600;">⚠ 低誠信</span>
+          </div>
+          <div class="output-task">任務：為 feature/221 撰寫單元測試覆蓋率報告</div>
+          <div class="output-meta">
+            <span class="meta-chip"><span class="dot" style="background:var(--status-busy)"></span> 已提交 2小時前</span>
+            <span class="meta-chip">📦 產出：test-coverage-report.md</span>
+            <span class="meta-chip">📂 任務 Repo：feature/221</span>
+          </div>
+          <div class="output-preview">
+            測試覆蓋率報告：整體覆蓋率 73%，其中核心模組覆蓋率達 89%。主要缺口在於錯誤處理分支，建議補充邊界條件測試...
+          </div>
+        </div>
+        <div class="output-actions">
+          <button class="action-btn pass" onclick="event.stopPropagation();rate('pass',1)">✅ 通過</button>
+          <button class="action-btn revision" onclick="event.stopPropagation();rate('revision',1)">🔧 需修改</button>
+          <button class="action-btn fail" onclick="event.stopPropagation();rate('fail',1)">❌ 不合格</button>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="output-card" onclick="openModal(2)">
+        <div class="output-avatar">🤖</div>
+        <div class="output-body">
+          <div class="output-top">
+            <div class="output-worker">temp-worker-beta-07</div>
+            <span class="trust-badge trust-high">⭐ 91</span>
+          </div>
+          <div class="output-task">任務：更新 API 文件（Swagger 規範）</div>
+          <div class="output-meta">
+            <span class="meta-chip"><span class="dot" style="background:var(--status-progress)"></span> 已提交 5小時前</span>
+            <span class="meta-chip">📦 產出：openapi-v3.yaml</span>
+            <span class="meta-chip">📂 doc/api/</span>
+          </div>
+          <div class="output-preview">
+            已按照 OpenAPI 3.0 規範完成所有端點文檔，包含請求/響應範例、錯誤碼說明、認證方式描述。支援 JWT Bearer Token...
+          </div>
+        </div>
+        <div class="output-actions">
+          <button class="action-btn pass" onclick="event.stopPropagation();rate('pass',2)">✅ 通過</button>
+          <button class="action-btn revision" onclick="event.stopPropagation();rate('revision',2)">🔧 需修改</button>
+          <button class="action-btn fail" onclick="event.stopPropagation();rate('fail',2)">❌ 不合格</button>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="output-card" onclick="openModal(3)">
+        <div class="output-avatar">🤖</div>
+        <div class="output-body">
+          <div class="output-top">
+            <div class="output-worker">temp-worker-gamma-01</div>
+            <span class="trust-badge trust-medium">⭐ 65</span>
+          </div>
+          <div class="output-task">任務：重構登入模組 error handling</div>
+          <div class="output-meta">
+            <span class="meta-chip"><span class="dot" style="background:var(--status-idle)"></span> 已提交 1天前</span>
+            <span class="meta-chip">📦 產出：auth-error-refactor.patch</span>
+            <span class="meta-chip">📂 src/auth/</span>
+          </div>
+          <div class="output-preview">
+            修補內容：統一錯誤處理介面，新增 CustomError 類別，移除重複 try-catch 區塊，錯誤訊息標準化。覆蓋率維持 95%...
+          </div>
+        </div>
+        <div class="output-actions">
+          <button class="action-btn pass" onclick="event.stopPropagation();rate('pass',3)">✅ 通過</button>
+          <button class="action-btn revision" onclick="event.stopPropagation();rate('revision',3)">🔧 需修改</button>
+          <button class="action-btn fail" onclick="event.stopPropagation();rate('fail',3)">❌ 不合格</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acceptance history -->
+    <div class="history-section">
+      <div class="section-header">
+        <div class="section-title">📜 驗收記錄</div>
+        <button class="btn">導出 CSV</button>
+      </div>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>臨時工</th>
+            <th>任務</th>
+            <th>產出</th>
+            <th>結果</th>
+            <th>驗收人</th>
+            <th>時間</th>
+            <th>誠信分變化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>temp-worker-alpha-02</td>
+            <td>PR #218 Code Review</td>
+            <td>review-summary.md</td>
+            <td><span class="result-badge pass">✅ 通過</span></td>
+            <td>@compiler</td>
+            <td>2026-03-23 14:22</td>
+            <td style="color:var(--status-idle)">+2 → 72</td>
+          </tr>
+          <tr>
+            <td>temp-worker-beta-04</td>
+            <td>資料庫遷移腳本</td>
+            <td>migrate-v3.sql</td>
+            <td><span class="result-badge revision">🔧 需修改</span></td>
+            <td>@compiler</td>
+            <td>2026-03-23 11:05</td>
+            <td style="color:var(--text-muted)">— → 58</td>
+          </tr>
+          <tr>
+            <td>temp-worker-alpha-01</td>
+            <td>E2E 測試案例</td>
+            <td>e2e-tests.spec.ts</td>
+            <td><span class="result-badge fail">❌ 不合格</span></td>
+            <td>@compiler</td>
+            <td>2026-03-22 19:30</td>
+            <td style="color:var(--status-offline)">-5 → 45</td>
+          </tr>
+          <tr>
+            <td>temp-worker-gamma-02</td>
+            <td>性能優化分析</td>
+            <td>perf-report.pdf</td>
+            <td><span class="result-badge pass">✅ 通過</span></td>
+            <td>@compiler</td>
+            <td>2026-03-22 16:48</td>
+            <td style="color:var(--status-idle)">+3 → 88</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📋 產出詳情</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <div class="modal-label">臨時工</div>
+        <div style="font-size:15px;font-weight:600" id="m-worker">temp-worker-alpha-03</div>
+        <span class="trust-badge trust-low" style="margin-top:6px;display:inline-flex">⭐ 誠信分 42</span>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">任務描述</div>
+        <div class="modal-text" id="m-task">為 feature/221 撰寫單元測試覆蓋率報告</div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">產出內容</div>
+        <div style="background:var(--bg-light);padding:16px;border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.7;border-left:3px solid var(--secondary);">
+          測試覆蓋率報告：整體覆蓋率 73%，其中核心模組覆蓋率達 89%。主要缺口在於錯誤處理分支，建議補充邊界條件測試。<br><br>
+          覆蓋缺口分析：<br>
+          - src/auth/login.ts: 67% (缺口：並發登入場景)<br>
+          - src/api/worker.ts: 81% (缺口：超時邏輯)<br>
+          - src/utils/logger.ts: 54% (缺口：日誌格式化)<br><br>
+          建議：增加 23 個測試用例可達到 85% 覆蓋率目標。
+        </div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">元老備註</div>
+        <textarea style="width:100%;background:var(--bg-light);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-size:13px;resize:vertical;min-height:80px;font-family:inherit" placeholder="填寫驗收備註（可選）..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="action-btn pass" onclick="rate('pass',0);closeModal()">✅ 通過</button>
+      <button class="action-btn revision" onclick="rate('revision',0);closeModal()">🔧 需修改</button>
+      <button class="action-btn fail" onclick="rate('fail',0);closeModal()">❌ 不合格</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function rate(result, id) {
+    const labels = { pass: '✅ 通過', revision: '🔧 需修改', fail: '❌ 不合格' };
+    const msgs = {
+      pass: '已標記為通過。臨時工誠信分將 +2。',
+      revision: '已標記為需修改。臨時工誠信分不變。',
+      fail: '已標記為不合格。臨時工誠信分將 -5。'
+    };
+    console.log(`Rate ${id}: ${result}`);
+    // In real app: POST /api/temp-worker-outputs/{id}/rate
+    alert(`${labels[result]}\n\n${msgs[result]}`);
+  }
+  function openModal(id) {
+    document.getElementById('modal').style.display = 'flex';
+  }
+  function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+  }
+  function refresh() { location.reload(); }
+  function showHistory() {
+    document.querySelector('.history-section').scrollIntoView({ behavior: 'smooth' });
+  }
+  // Close modal on backdrop click
+  document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+
+</body>
+</html>
