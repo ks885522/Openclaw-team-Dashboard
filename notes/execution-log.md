@@ -557,3 +557,38 @@
 | #195 | [編譯器] #187 誠信評分 | func-review-needed |
 
 **結論**: 無待美術審查項目。所有 open PR 均已具備 `art-approved` 或無需美術審查（純後端/功能實作）。✅
+
+---
+
+## 日期: 2026-03-24
+
+### 美術審查: #221 臨時工產出驗收流程 UI 設計稿
+
+**Branch**: `design/221-temp-worker-output-acceptance`
+**設計檔**: `design/temp-worker-output-acceptance.html`
+**審查結論**: ✅ 通過（附帶 2 項微小心觀察）
+
+#### 配色系統: ✅ 完全符合
+- Primary `#0066FF` / Secondary `#6B4EFF` / Accent `#00D4FF` ✅
+- 背景 `#0A0E17` / `#151B26` / `#1E2533` ✅
+- 邊框 `#2A3444` ✅
+- 文字 `#FFFFFF` / `#8B95A5` / `#5C6577` ✅
+- 狀態色（idle/busy/offline/progress）全部符合 ✅
+- 結果色（pass/revision/fail）全部符合 ✅
+
+#### 字體/間距: ✅ 完全符合
+- Inter, 權重 400/500/600/700 ✅
+- 標題 18-24px / 正文 13-15px / 標籤 11-12px ✅
+- 間距 16px / 12px / 8px ✅
+
+#### 組件結構: ✅ 完整
+- Header（64px）/ Sidebar（240px）/ Stats Row / Output Cards / History Table / Modal ✅
+- Output Card Hover 效果（border + box-shadow）✅
+- 漸層遮罩 Preview 區塊 ✅
+- 三按鈕操作列（通過/需修改/不合格）✅
+
+#### 微小觀察（不阻擋核准）
+1. **緊急標記不夠突出**：Card 1 使用 `is-urgent` class，左側僅 3px `status-busy` 邊框，疊加在多卡片列表中視覺區分度有限。建議實作時加上頂部色條或輕微背景色強化。
+2. **Badge 語意輕微歧義**：`--status-busy` (#F59E0B) 在 Header Badge 表「待處理」，但此顏色在其他模組通常表「進行中」。不影響功能，建議未來考虑新增 `--status-pending` 色值。
+
+**標籤建議**: `art-approved` ✅
