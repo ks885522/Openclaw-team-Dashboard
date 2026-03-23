@@ -3,243 +3,183 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>截圖與標記工具 - UI 設計</title>
+  <title>截圖與標記工具 - Visual Annotation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary: #4F46E5;
-      --primary-hover: #4338CA;
-      --surface: #FFFFFF;
-      --surface-elevated: #F9FAFB;
-      --border: #E5E7EB;
-      --text-primary: #111827;
-      --text-secondary: #6B7280;
-      --text-tertiary: #9CA3AF;
-      --success: #10B981;
-      --warning: #F59E0B;
-      --error: #EF4444;
+      /* Primary Colors */
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      
+      /* Background Colors */
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --bg-overlay: rgba(10, 14, 23, 0.85);
+      --border: #2A3444;
+      
+      /* Text Colors */
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      
+      /* Tool Colors */
+      --tool-red: #EF4444;
+      --tool-yellow: #F59E0B;
+      --tool-green: #10B981;
+      --tool-blue: #3B82F6;
     }
-
+    
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-
+    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
       min-height: 100vh;
-      padding: 40px;
     }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      color: white;
-      text-align: center;
-      margin-bottom: 8px;
-      font-size: 28px;
-    }
-
-    .subtitle {
-      color: rgba(255,255,255,0.8);
-      text-align: center;
-      margin-bottom: 40px;
-      font-size: 14px;
-    }
-
-    .tool-panel {
-      background: var(--surface);
-      border-radius: 16px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      overflow: hidden;
-    }
-
-    .tool-header {
+    
+    /* Header */
+    .header {
+      height: 56px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 24px;
-      background: var(--surface-elevated);
-      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-
-    .tool-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
+    
+    .header-left {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
     }
-
-    .tool-title::before {
-      content: '';
-      width: 8px;
-      height: 8px;
-      background: var(--primary);
-      border-radius: 50%;
-    }
-
-    .tool-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
       border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      border: none;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: var(--primary-hover);
-    }
-
-    .btn-secondary {
-      background: white;
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover {
-      background: var(--surface-elevated);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-secondary);
-      padding: 8px;
-    }
-
-    .btn-ghost:hover {
-      background: var(--surface-elevated);
-      color: var(--text-primary);
-    }
-
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 12px 24px;
-      border-bottom: 1px solid var(--border);
-      background: white;
-    }
-
-    .tool-group {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding-right: 16px;
-      border-right: 1px solid var(--border);
-    }
-
-    .tool-group:last-child {
-      border-right: none;
-    }
-
-    .tool-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
+      font-size: 18px;
+    }
+    
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    /* Annotation Toolbar */
+    .annotation-toolbar {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 16px;
+      display: flex;
+      gap: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 200;
+    }
+    
+    .tool-btn {
+      width: 40px;
+      height: 40px;
       border-radius: 8px;
-      border: none;
-      background: transparent;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
       color: var(--text-secondary);
       cursor: pointer;
-      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
     }
-
+    
     .tool-btn:hover {
-      background: var(--surface-elevated);
+      background: var(--primary);
       color: var(--text-primary);
+      border-color: var(--primary);
     }
-
+    
     .tool-btn.active {
       background: var(--primary);
-      color: white;
+      color: var(--text-primary);
+      border-color: var(--primary);
     }
-
+    
+    .tool-divider {
+      width: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
+    
     .color-picker {
       display: flex;
       gap: 4px;
+      align-items: center;
+      padding: 0 8px;
     }
-
-    .color-swatch {
-      width: 24px;
-      height: 24px;
+    
+    .color-dot {
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      border: 2px solid transparent;
       cursor: pointer;
-      transition: transform 0.15s;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
     }
-
-    .color-swatch:hover {
-      transform: scale(1.1);
-    }
-
-    .color-swatch.active {
+    
+    .color-dot:hover, .color-dot.active {
+      transform: scale(1.2);
       border-color: var(--text-primary);
     }
-
-    .canvas-area {
-      position: relative;
-      min-height: 400px;
-      background: #1a1a2e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .upload-zone {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      color: rgba(255,255,255,0.6);
-      padding: 60px;
-    }
-
-    .upload-icon {
-      width: 64px;
-      height: 64px;
-      border: 2px dashed rgba(255,255,255,0.3);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
+    
+    .color-dot.red { background: var(--tool-red); }
+    .color-dot.yellow { background: var(--tool-yellow); }
+    .color-dot.green { background: var(--tool-green); }
+    .color-dot.blue { background: var(--tool-blue); }
+    
+    /* Screenshot Canvas Area */
     .canvas-container {
-      position: relative;
-      max-width: 100%;
-      max-height: 500px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 120px 24px 24px;
+      min-height: calc(100vh - 56px);
     }
-
-    .annotation-canvas {
+    
+    .screenshot-canvas {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+      max-width: 100%;
+    }
+    
+    .screenshot-image {
       display: block;
       max-width: 100%;
-      max-height: 500px;
-      border-radius: 8px;
+      height: auto;
     }
-
+    
+    /* Annotation Overlay */
     .annotation-layer {
       position: absolute;
       top: 0;
@@ -248,194 +188,283 @@
       height: 100%;
       pointer-events: none;
     }
-
-    .annotation-layer.drawing {
-      pointer-events: auto;
-      cursor: crosshair;
+    
+    /* Sample Annotations */
+    .annotation-circle {
+      position: absolute;
+      border: 3px solid var(--tool-red);
+      border-radius: 50%;
+      pointer-events: none;
     }
-
-    .tool-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 24px;
-      background: var(--surface-elevated);
-      border-top: 1px solid var(--border);
-    }
-
-    .status-text {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .export-btns {
-      display: flex;
-      gap: 8px;
-    }
-
-    /* Demo annotation */
-    .demo-annotation {
+    
+    .annotation-arrow {
       position: absolute;
       pointer-events: none;
     }
-
-    .circle-mark {
-      width: 80px;
-      height: 80px;
-      border: 3px solid #EF4444;
-      border-radius: 50%;
-      top: 120px;
-      left: 200px;
-      animation: pulse 2s infinite;
-    }
-
-    .text-mark {
-      background: #EF4444;
-      color: white;
+    
+    .annotation-text {
+      position: absolute;
+      background: var(--tool-yellow);
+      color: #000;
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 12px;
       font-weight: 500;
-      top: 210px;
-      left: 295px;
+      pointer-events: none;
     }
-
-    .text-mark::before {
-      content: '';
+    
+    /* Bottom Action Bar */
+    .action-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 200;
+    }
+    
+    .action-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .action-btn.primary {
+      background: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    .action-btn.primary:hover {
+      background: #0052CC;
+    }
+    
+    .action-btn.secondary {
+      background: var(--bg-light);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    
+    .action-btn.secondary:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+    
+    /* Description Input */
+    .description-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 24px;
+      max-width: 600px;
+    }
+    
+    .description-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .description-input {
+      width: 100%;
+      min-height: 80px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      resize: vertical;
+    }
+    
+    .description-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    
+    .description-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* Tooltip */
+    .tooltip {
       position: absolute;
-      top: -6px;
-      left: 10px;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 6px solid #EF4444;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 300;
     }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
+    
+    /* Keyboard Shortcut Hint */
+    .shortcut-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 8px;
     }
-
-    /* SVG Icons */
-    .icon {
-      width: 18px;
-      height: 18px;
+    
+    .key {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    
+    /* Responsive */
+    @media (max-width: 640px) {
+      .annotation-toolbar {
+        width: calc(100% - 32px);
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .action-bar {
+        width: calc(100% - 32px);
+        justify-content: center;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🎨 截圖與標記工具</h1>
-    <p class="subtitle">Visual Annotation Tool - UI Design for Issue #68</p>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">📸</div>
+      <h1 class="header-title">截圖與標記工具</h1>
+    </div>
+    <div class="header-actions">
+      <span class="shortcut-hint">
+        <span class="key">Ctrl</span>+<span class="key">Shift</span>+<span class="key">S</span>
+      </span>
+    </div>
+  </header>
+  
+  <!-- Annotation Toolbar -->
+  <div class="annotation-toolbar">
+    <button class="tool-btn active" title="選取工具">
+      <span>👆</span>
+    </button>
+    <button class="tool-btn" title="畫圓">
+      <span>⭕</span>
+    </button>
+    <button class="tool-btn" title="畫箭頭">
+      <span>➡️</span>
+    </button>
+    <button class="tool-btn" title="畫框">
+      <span>⬜</span>
+    </button>
+    <button class="tool-btn" title="畫筆">
+      <span>✏️</span>
+    </button>
+    <button class="tool-btn" title="加入文字">
+      <span>T</span>
+    </button>
     
-    <div class="tool-panel">
-      <div class="tool-header">
-        <div class="tool-title">新標註</div>
-        <div class="tool-actions">
-          <button class="btn btn-secondary">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-            匯入圖片
-          </button>
-          <button class="btn btn-primary">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            螢幕截圖
-          </button>
-        </div>
-      </div>
+    <div class="tool-divider"></div>
+    
+    <div class="color-picker">
+      <div class="color-dot red active" title="紅色"></div>
+      <div class="color-dot yellow" title="黃色"></div>
+      <div class="color-dot green" title="綠色"></div>
+      <div class="color-dot blue" title="藍色"></div>
+    </div>
+    
+    <div class="tool-divider"></div>
+    
+    <button class="tool-btn" title="復原">
+      <span>↩️</span>
+    </button>
+    <button class="tool-btn" title="重做">
+      <span>↪️</span>
+    </button>
+  </div>
+  
+  <!-- Screenshot Canvas -->
+  <div class="canvas-container">
+    <div class="screenshot-canvas" style="position: relative;">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='500' viewBox='0 0 800 500'%3E%3Crect fill='%230A0E17' width='800' height='500'/%3E%3Ctext fill='%238B95A5' font-family='Inter, sans-serif' font-size='24' x='50%25' y='50%25' text-anchor='middle'%3E截圖預覽區域%3C/text%3E%3Ctext fill='%235C6577' font-family='Inter, sans-serif' font-size='14' x='50%25' y='60%25' text-anchor='middle'%3E點擊「截圖」按鈕開始截取畫面%3C/text%3E%3C/svg%3E" 
+           alt="Screenshot" 
+           class="screenshot-image">
       
-      <div class="toolbar">
-        <div class="tool-group">
-          <button class="tool-btn active" title="選取">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
-          </button>
-          <button class="tool-btn" title="畫圈">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
-          </button>
-          <button class="tool-btn" title="矩形">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"></path></svg>
-          </button>
-          <button class="tool-btn" title="箭頭">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-          </button>
-          <button class="tool-btn" title="自由繪畫">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-          </button>
-        </div>
-        
-        <div class="tool-group">
-          <button class="tool-btn" title="文字">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-          </button>
-        </div>
-        
-        <div class="tool-group">
-          <div class="color-picker">
-            <div class="color-swatch active" style="background: #EF4444" title="紅色"></div>
-            <div class="color-swatch" style="background: #F59E0B" title="橘色"></div>
-            <div class="color-swatch" style="background: #10B981" title="綠色"></div>
-            <div class="color-swatch" style="background: #3B82F6" title="藍色"></div>
-            <div class="color-swatch" style="background: #8B5CF6" title="紫色"></div>
-            <div class="color-swatch" style="background: #FFFFFF" title="白色"></div>
-          </div>
-        </div>
-        
-        <div class="tool-group">
-          <button class="tool-btn" title="增加線條粗細">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-          </button>
-          <button class="tool-btn" title="減少線條粗細">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
-          </button>
-        </div>
-        
-        <div class="tool-group">
-          <button class="tool-btn" title="上一步">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
-          </button>
-          <button class="tool-btn" title="下一步">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"></path></svg>
-          </button>
-        </div>
-        
-        <div class="tool-group" style="margin-left: auto;">
-          <button class="btn btn-ghost" title="清除">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-          </button>
-        </div>
-      </div>
-      
-      <div class="canvas-area">
-        <div class="upload-zone">
-          <div class="upload-icon">
-            <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-          </div>
-          <span>點擊或拖曳圖片到這裡</span>
-          <span style="font-size: 12px">支援 PNG, JPG, GIF</span>
-        </div>
-        
-        <!-- Demo with annotations (hidden by default) -->
-        <div class="canvas-container" style="display: none;">
-          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='500' viewBox='0 0 800 500'%3E%3Crect fill='%23f3f4f6' width='800' height='500'/%3E%3Ctext fill='%239ca3af' font-size='24' x='300' y='250'%3EDashboard Preview%3C/text%3E%3C/svg%3E" class="annotation-canvas" alt="Demo">
-          <div class="annotation-layer">
-            <div class="demo-annotation circle-mark"></div>
-            <div class="demo-annotation text-mark">按鈕樣式錯誤</div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="tool-footer">
-        <span class="status-text">就緒</span>
-        <div class="export-btns">
-          <button class="btn btn-secondary">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-            複製到剪貼簿
-          </button>
-          <button class="btn btn-primary">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            匯出圖片
-          </button>
-        </div>
+      <!-- Sample Annotations -->
+      <div class="annotation-layer">
+        <div class="annotation-circle" style="left: 180px; top: 120px; width: 80px; height: 80px;"></div>
+        <div class="annotation-text" style="left: 280px; top: 140px;">按鈕間距過窄</div>
+        <div class="annotation-circle" style="left: 450px; top: 280px; width: 100px; height: 60px;"></div>
+        <div class="annotation-text" style="left: 570px; top: 300px; background: var(--tool-green);">正確範例</div>
       </div>
     </div>
   </div>
+  
+  <!-- Description Panel -->
+  <div style="display: flex; justify-content: center;">
+    <div class="description-panel">
+      <div class="description-title">
+        📝 問題描述
+      </div>
+      <textarea class="description-input" placeholder="描述您發現的問題或建議...">Dashboard 右上角的設定按鈕與重新整理按鈕間距太近，點擊時容易誤觸。</textarea>
+    </div>
+  </div>
+  
+  <!-- Bottom Action Bar -->
+  <div class="action-bar">
+    <button class="action-btn secondary">
+      <span>🔄</span>
+      重新截圖
+    </button>
+    <button class="action-btn secondary">
+      <span>🗑️</span>
+      清除標註
+    </button>
+    <button class="action-btn primary">
+      <span>✅</span>
+      確認並建立 Issue
+    </button>
+  </div>
+  
+  <script>
+    // Interactive demo - just show the UI behavior
+    const toolBtns = document.querySelectorAll('.tool-btn:not(.active)');
+    const colorDots = document.querySelectorAll('.color-dot');
+    
+    toolBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+    
+    colorDots.forEach(dot => {
+      dot.addEventListener('click', function() {
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>
