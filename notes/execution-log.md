@@ -1,5 +1,49 @@
 # 審查執行日誌
 
+## 日期: 2026-03-21 (19:52 UTC+8) — 工程 cycle
+
+### 執行結果: ⚠️ GitHub API 持續中斷（已超過 70 小時）
+
+**網路狀態**:
+- ❌ GitHub HTTPS API (api.github.com:443) 持續無法連線
+- ❌ `curl https://api.github.com` → 連線逾時
+- ❌ `web_fetch https://api.github.com/...` → EAI_AGAIN (DNS 解析失敗)
+- ✅ `git fetch origin` (SSH port 22) → 成功
+- ✅ `gh config get git_protocol` → ssh (但 API 仍需 HTTPS)
+- ✅ main 分支已同步至 origin/main (361daeb)
+
+**本地環境狀態**:
+- ✅ main 分支已同步至 origin/main
+- ✅ 工作區乾淨，無未提交變更
+- ✅ 所有 feature branches 已推送至 origin
+- ⚠️ GitHub API 完全中斷，無法執行任何 gh 操作或建立 PR
+
+**本輪嘗試的方法**:
+1. `curl https://api.github.com` → 逾時
+2. `web_fetch` → EAI_AGAIN DNS 解析失敗
+3. `gh auth status` → 逾時
+4. `gh config` → SSH 已設定但 API 仍需 HTTPS
+5. 檢查所有 feature branches 均已推送至 origin
+6. `git fetch origin` → 成功
+
+**無法執行的操作（GitHub API 中斷）**:
+- ❌ 無法查詢 `engineering-needed` 標籤的 issues
+- ❌ 無法檢查 open issues/PR 列表
+- ❌ 無法建立 PR（feature/210-temp-worker-api 已推送但 PR 未建立）
+- ❌ 無法在 issue/PR 留言署名
+- ❌ 無法更新 issue 標籤或狀態
+
+**已推送至 Origin 的 Feature Branches（待 GitHub API 恢復後建立 PR）**:
+- feature/210-temp-worker-api (commit 12e0d4a): 臨時工 API (+210 行)
+- feature/179-token-distribution (commit 58e2533): Token 消耗分佈儀表板
+- feature/181-auto-frequency-tuning (commit 9b93742): 自動調頻建議引擎
+- feature/183-flow-visualization (commit f8b5a85): 任務流轉拓撲圖
+- feature/187-trust-score (commit b882689): Trust Score + Evidence Comparison
+
+**結論**: GitHub API DNS 解析失敗已持續超過 70 小時。SSH (git push/pull/fetch) 正常，但 gh CLI 和 REST API 完全無法運作。本輪工程 cycle 無法執行任何任務：無新 issue 可查詢，無 PR 可建立。建議 🚀 部署艦 緊急修復 WSL2 網路配置（443 端口/DNS 解析）。
+
+---
+
 ## 日期: 2026-03-18
 
 ### 執行結果: ⚠️ 網路連線問題
@@ -417,6 +461,53 @@
 
 ---
 
+## 日期: 2026-03-21 (19:38 UTC+8)
+
+### 執行結果: ⚠️ GitHub API 持續中斷（已超過 70 小時）
+
+**網路狀態**:
+- ❌ GitHub HTTPS API (api.github.com:443) 持續無法連線
+- ❌ `gh pr list` → `none of the git remotes configured for this repository point to a known GitHub host`
+- ❌ `curl https://api.github.com` → 連線逾時
+- ✅ `git fetch origin` → 成功（SSH 可達）
+- ✅ SSH 身份驗證成功
+
+**本地環境狀態**:
+- ✅ main 分支已同步至 origin/main (361daeb)
+- ✅ Dashboard 運行於 http://localhost:28080（Vite preview，HTTP 200）
+- ✅ Chromium 瀏覽器正常運行（port 18800）
+- ✅ API server 運行於 port 3001
+- ⚠️ GitHub API 完全中斷，無法執行任何 gh 操作
+
+**Dashboard 現況（main 分支，截圖存檔）**:
+- 頁面正常載入，標題「OpenClaw Team Dashboard」
+- 7 個 Agent 卡片顯示：編譯器、調色盤、透析器、指揮台、督察、測試台、部署艦
+- 大部分 Agent 顯示「離線 等待新任務...」
+- 透析器顯示「⚠️ 元記憶體讀取失敗: ENOENT」錯誤
+- 主內容區顯示紅色橫幅「無法載入績效數據」
+- 績效數據無法載入原因：API server 依賴 `gh pr list`，GitHub API 中斷導致效能端點逾時
+
+**本地待測 Feature Branches（落後 main 無法確認 PR 狀態）**:
+- feature/210-temp-worker-api: 1 commit ahead（功能實作完成，等待建立 PR）
+- feature/179-token-distribution: 1 commit ahead
+- feature/181-auto-frequency-tuning: 1 commit ahead
+- feature/183-flow-visualization: 6 commits ahead
+- feature/187-trust-score: 2 commits ahead
+- design/183-flow-topology: 1 commit ahead
+- design/token-consumption-allocation: 1 commit ahead
+
+**無法執行的操作（GitHub API 中斷已超 70 小時）**:
+- ❌ 無法查詢 open PR 列表
+- ❌ 無法檢查 `func-review-needed` 標籤的 issues
+- ❌ 無法建立 PR
+- ❌ 無法在 PR/issue 留言署名結果
+- ❌ 無法添加 `func-approved` 標籤
+- ❌ Dashboard 效能數據無法載入（依賴 `gh pr list`）
+
+**結論**: GitHub API HTTPS 連線已中斷超過 70 小時。SSH (git push/pull/fetch) 正常，但 `gh` CLI 和 REST API 完全無法運作。Dashboard 本身可正常載入，但依賴 GitHub API 的效能面板顯示錯誤。本輪審查無 PR 可測試，無 issue 可更新。建議 🚀 部署艦 緊急修復 WSL2 網路配置（443 端口/DNS 解析），或考慮使用 SSH-based GitHub CLI wrapper。
+
+---
+
 ## 日期: 2026-03-21 (06:16 UTC+8)
 
 ### 執行結果: ⚠️ GitHub API 持續中斷（已超過 48 小時）
@@ -468,3 +559,84 @@
 - ❌ 無法在 issue 留言署名
 
 **結論**: GitHub API 中斷已持續超過 46 小時。SSH 正常但 HTTPS API 完全中斷。本輪無新任務可執行。建議 🚀 部署艦 緊急修復 WSL2 網路配置（443 端口）。
+
+## 日期: 2026-03-23 (14:38 UTC) — 工程 cycle
+
+### 執行結果: ✅ PR #222 已提交
+
+**網路狀態**:
+- ✅ GitHub API 已恢復連線
+- ✅ `curl https://api.github.com` → 正常回應
+- ✅ `gh auth status` → 已登入 (JackChang928)
+
+**本輪執行情況**:
+1. 檢視 GitHub Issues，發現 #220 (臨時工啟動/停止/解僱 API) 可實作
+2. 發現 PR #216 (feature/210-temp-worker-api) 已open但：
+   - 缺少 POST /terminate 端點（只有 DELETE）
+   - 缺少狀態機校驗
+   - 缺少操作日誌
+3. 以 feature/210-temp-worker-api 為基礎建立新分支 feature/220-temp-worker-lifecycle
+4. 實作以下功能：
+   - ✅ 新增 POST /api/temp-workers/:id/terminate 端點
+   - ✅ 嚴格狀態機校驗：使用 intermediate states (starting/stopping/terminating)
+   - ✅ 每次狀態變更寫入 tempWorkerOpLog（含 timestamp, fromStatus, toStatus, action）
+   - ✅ 新增 GET /api/temp-workers/:id/logs 端點
+   - ✅ terminate 前置狀態改為 terminating（過渡態）
+5. 提交並推送分支
+6. 建立 PR #222 → https://github.com/ks885522/Openclaw-team-Dashboard/pull/222
+
+**PR #222 變更摘要**:
+- 新增：137 行（含狀態機、日誌系統、POST /terminate、GET /logs）
+- 修改：23 行（enhance start/stop/terminate with intermediate states）
+- 檔案：server/api-server.js
+
+**對應 Issue**: #220
+
+**待辦**:
+- [ ] PR #222 需要 code review
+- [ ] 測試環境驗證 API 功能
+- [ ] 考慮合併 #216 + #222 或重新规划
+## 日期: 2026-03-24 (15:20 UTC+8) — 工程 cycle
+
+### 執行結果: ✅ PR #225 已提交
+
+**網路狀態**:
+- ✅ GitHub API 正常運作
+- ✅ gh auth status → 已登入 (JackChang928)
+
+**本輪執行情況**:
+1. 檢視 GitHub Issues，發現 #188 (負面反饋聯動) 可實作
+   - Issue #188 有 `pending` 標籤，priority:high
+   - 依賴 #187 (誠信評分) - 已實作於 PR #195
+2. 基於 feature/187-trust-score 分支建立 feature/188-negative-feedback
+3. 實作負面反饋聯動功能：
+   - ✅ 新增 NEGATIVE_FEEDBACK_CONFIG 配置（警告閾值 70，關鍵閾值 40）
+   - ✅ checkNegativeFeedback() 函數自動檢查信任分數
+   - ✅ 自動處置：分數 ≤ 20 暫停 Agent，≤ 40 降低 50% 額度
+   - ✅ 新增 API endpoints：status/config/check/acknowledge
+   - ✅ 整合進 getTrustScoreReport()，自動觸發檢查
+   - ✅ 支援 Webhook 通知（Discord、飛書）
+4. 提交並推送分支
+5. 建立 PR #225 → https://github.com/ks885522/Openclaw-team-Dashboard/pull/225
+
+**PR #225 變更摘要**:
+- 新增：195 行（負面反饋配置、檢查函數、API endpoints）
+- 檔案：server/api-server.js
+
+**對應 Issue**: #188
+
+**API Endpoints**:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/negative-feedback/status | 取得目前狀態 |
+| GET | /api/negative-feedback/config | 取得設定 |
+| POST | /api/negative-feedback/config | 更新設定 |
+| POST | /api/negative-feedback/check | 手動觸發檢查 |
+| POST | /api/negative-feedback/acknowledge | 確認警告 |
+
+**待辦**:
+- [ ] PR #225 需要 code review
+- [ ] PR #222 (#220 臨時工生命週期) 需要 code review
+- [ ] PR #195 (#187 誠信評分) 需要 merge
+
+---
