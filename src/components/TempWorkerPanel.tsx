@@ -11,6 +11,8 @@ import {
 
 interface TempWorkerPanelProps {
   maxHeight?: string
+  /** Fired when user requests full-page detail view (F5: 臨時工詳情頁) */
+  onViewFullDetail?: (workerId: string) => void
 }
 
 type SortField = 'name' | 'status' | 'port' | 'createdAt'
@@ -26,7 +28,7 @@ const statusLabel: Record<TempWorker['status'], string> = {
   terminated: '已終止',
 }
 
-const TempWorkerPanel: React.FC<TempWorkerPanelProps> = ({ maxHeight = 'none' }) => {
+const TempWorkerPanel: React.FC<TempWorkerPanelProps> = ({ maxHeight = 'none', onViewFullDetail }) => {
   const [workers, setWorkers] = useState<TempWorker[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
@@ -382,6 +384,15 @@ const TempWorkerPanel: React.FC<TempWorkerPanelProps> = ({ maxHeight = 'none' })
                       >
                         🔍
                       </button>
+                      {onViewFullDetail && (
+                        <button
+                          className="action-btn"
+                          title="完整詳情"
+                          onClick={() => onViewFullDetail(worker.id)}
+                        >
+                          📋
+                        </button>
+                      )}
                       {worker.status !== 'terminated' && (
                         <button
                           className="action-btn delete"

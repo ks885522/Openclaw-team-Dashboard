@@ -63,3 +63,25 @@ export async function terminateTempWorker(id: string): Promise<{ success: boolea
   if (!res.ok) throw new Error(data.error || `Failed to terminate: ${res.status}`)
   return data
 }
+
+// Operation log entry for a temp worker
+export interface TempWorkerOpLog {
+  timestamp: string
+  workerId: string
+  action: string
+  fromStatus: string
+  toStatus: string
+  [key: string]: unknown
+}
+
+export interface FetchTempWorkerLogsResult {
+  workerId: string
+  logs: TempWorkerOpLog[]
+  count: number
+}
+
+export async function fetchTempWorkerLogs(workerId: string, limit = 50): Promise<FetchTempWorkerLogsResult> {
+  const res = await fetch(`${API_BASE}/api/temp-workers/${workerId}/logs?limit=${limit}`)
+  if (!res.ok) throw new Error(`Failed to fetch logs: ${res.status}`)
+  return res.json()
+}

@@ -17,6 +17,7 @@ import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
 import TokenAllocation from './components/TokenAllocation'
 import { TempWorkerPanel } from './components/TempWorkerPanel'
+import { TempWorkerDetailPage } from './components/TempWorkerDetailPage'
 
 // 項目類型
 interface Project {
@@ -60,6 +61,7 @@ function App() {
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation' | 'tempworkers'>('dashboard')
+  const [selectedTempWorkerId, setSelectedTempWorkerId] = useState<string | null>(null)
 
   useEffect(() => {
     // 初始載入
@@ -704,7 +706,17 @@ function App() {
           <TokenAllocation />
         ) : activeTab === 'tempworkers' ? (
           <div style={{ padding: '24px', maxHeight: 'calc(100vh - 80px)', overflowY: 'auto' }}>
-            <TempWorkerPanel />
+            {selectedTempWorkerId ? (
+              <TempWorkerDetailPage
+                workerId={selectedTempWorkerId}
+                onBack={() => setSelectedTempWorkerId(null)}
+                onWorkerChange={() => {}}
+              />
+            ) : (
+              <TempWorkerPanel
+                onViewFullDetail={(id) => setSelectedTempWorkerId(id)}
+              />
+            )}
           </div>
         ) : (
           <PerformanceDashboard />
