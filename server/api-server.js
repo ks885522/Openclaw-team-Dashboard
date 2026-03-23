@@ -31,6 +31,90 @@ const TRUST_SCORE_CONFIG = {
   minScore: 0
 };
 
+// Negative Feedback Integration Configuration (Issue #188)
+const NEGATIVE_FEEDBACK_CONFIG = {
+  warningThreshold: 70,        // Warning when trust score drops below 70
+  criticalThreshold: 40,       // Critical when trust score drops below 40
+  checkIntervalMs: 60000,      // Check every 60 seconds
+  autoPauseThreshold: 20,      // Auto-pause agent when score drops below 20
+  quotaReductionPercent: 50,    // Reduce quota by 50% when critical
+  notificationsEnabled: true    // Send notifications when triggered
+};
+
+// Negative feedback state
+const negativeFeedbackAlerts = [];  // [{ agentId, level, message, triggeredAt, actionTaken, acknowledged }]
+let negativeFeedbackConfig = { ...NEGATIVE_FEEDBACK_CONFIG };
+
+/**
+ * Check trust scores and trigger negative feedback alerts
+ */
+function checkNegativeFeedback(trustScoreData) {
+  const alerts = [];
+  const now = new Date().toISOString();
+  
+  for (const [agentId, score] of Object.entries(trustScoreData)) {
+    const previousAlert = negativeFeedbackAlerts.find(a => a.agentId === agentId && !a.acknowledged);
+    
+    if (score <= negativeFeedbackConfig.criticalThreshold) {
+      // Critical level
+      const actionTaken = [];
+      
+      if (score <= negativeFeedbackConfig.autoPauseThreshold) {
+        // Auto-pause agent
+        actionTaken.push(`auto-pause: Agent paused due to critical trust score (${score})`);
+      } else if (score <= negativeFeedbackConfig.criticalThreshold) {
+        // Reduce quota
+        actionTaken.push(`quota-reduction: Quota reduced by ${negativeFeedbackConfig.quotaReductionPercent}%`);
+      }
+      
+      const alert = {
+        agentId,
+        level: 'critical',
+        score,
+        message: `Critical trust score ${score} for ${agentId}. Actions taken: ${actionTaken.join(', ')}`,
+        triggeredAt: now,
+        actionTaken,
+        acknowledged: false
+      };
+      alerts.push(alert);
+      
+      // Update or create alert
+      const existingIndex = negativeFeedbackAlerts.findIndex(a => a.agentId === agentId);
+      if (existingIndex >= 0) {
+        negativeFeedbackAlerts[existingIndex] = alert;
+      } else {
+        negativeFeedbackAlerts.push(alert);
+      }
+      
+    } else if (score <= negativeFeedbackConfig.warningThreshold) {
+      // Warning level
+      const alert = {
+        agentId,
+        level: 'warning',
+        score,
+        message: `Trust score ${score} for ${agentId} is below warning threshold (${negativeFeedbackConfig.warningThreshold})`,
+        triggeredAt: now,
+        actionTaken: [],
+        acknowledged: false
+      };
+      alerts.push(alert);
+      
+      const existingIndex = negativeFeedbackAlerts.findIndex(a => a.agentId === agentId);
+      if (existingIndex >= 0) {
+        negativeFeedbackAlerts[existingIndex] = alert;
+      } else {
+        negativeFeedbackAlerts.push(alert);
+      }
+    } else if (previousAlert) {
+      // Score recovered - acknowledge previous alert
+      previousAlert.acknowledged = true;
+      previousAlert.acknowledgedAt = now;
+    }
+  }
+  
+  return alerts;
+}
+
 // Trust score data
 const trustScores = {};        // { agentId: score }
 const trustScoreHistory = [];  // [{ agentId, eventType, score, timestamp, details }]
@@ -94,6 +178,16 @@ function calculateTrustScores() {
 function getTrustScoreReport() {
   const scores = calculateTrustScores();
   
+  // Auto-check negative feedback when trust scores are calculated
+  const newAlerts = checkNegativeFeedback(scores);
+  if (newAlerts.length > 0 && negativeFeedbackConfig.notificationsEnabled) {
+    const criticalAlerts = newAlerts.filter(a => a.level === 'critical');
+    if (criticalAlerts.length > 0) {
+      const message = `🚨 **Critical Negative Feedback Alerts**\n${criticalAlerts.map(a => `- ${a.message}`).join('\n')}`;
+      sendNotification('critical', 'Negative Feedback Critical Alert', message).catch(console.error);
+    }
+  }
+  
   // Get QA rejected issues for history
   let history = [];
   try {
@@ -126,7 +220,11 @@ function getTrustScoreReport() {
   return {
     scores,
     history: history.slice(0, 50), // Last 50 events
-    config: TRUST_SCORE_CONFIG
+    config: TRUST_SCORE_CONFIG,
+    negativeFeedback: {
+      activeAlerts: negativeFeedbackAlerts.filter(a => !a.acknowledged),
+      config: negativeFeedbackConfig
+    }
   };
 }
 
@@ -1298,6 +1396,102 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Trust scores reset' }));
 // [編譯器] #187 Trust Score merged with DoD compliance
+    return;
+  // ==================== Negative Feedback API Endpoints (Issue #188) ====================
+  } else if (req.url === '/api/negative-feedback/status' && req.method === 'GET') {
+    // Get current negative feedback status
+    const scores = calculateTrustScores();
+    const alerts = checkNegativeFeedback(scores);
+    const activeAlerts = negativeFeedbackAlerts.filter(a => !a.acknowledged);
+    const recentAlerts = negativeFeedbackAlerts.slice(-20);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      config: negativeFeedbackConfig,
+      activeAlerts,
+      recentAlerts,
+      alertCount: activeAlerts.length,
+      criticalCount: activeAlerts.filter(a => a.level === 'critical').length,
+      warningCount: activeAlerts.filter(a => a.level === 'warning').length,
+      lastChecked: new Date().toISOString()
+    }));
+    return;
+  } else if (req.url === '/api/negative-feedback/config' && req.method === 'GET') {
+    // Get negative feedback configuration
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      config: negativeFeedbackConfig,
+      defaultConfig: NEGATIVE_FEEDBACK_CONFIG
+    }));
+    return;
+  } else if (req.url === '/api/negative-feedback/config' && req.method === 'POST') {
+    // Update negative feedback configuration
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const updates = JSON.parse(body);
+        const allowedKeys = ['warningThreshold', 'criticalThreshold', 'autoPauseThreshold', 'quotaReductionPercent', 'notificationsEnabled'];
+        
+        allowedKeys.forEach(key => {
+          if (updates[key] !== undefined) {
+            negativeFeedbackConfig[key] = updates[key];
+          }
+        });
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, config: negativeFeedbackConfig }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  } else if (req.url === '/api/negative-feedback/check' && req.method === 'POST') {
+    // Manually trigger negative feedback check
+    const scores = calculateTrustScores();
+    const alerts = checkNegativeFeedback(scores);
+    
+    // Send notifications if alerts were triggered and notifications are enabled
+    if (alerts.length > 0 && negativeFeedbackConfig.notificationsEnabled) {
+      const criticalAlerts = alerts.filter(a => a.level === 'critical');
+      if (criticalAlerts.length > 0) {
+        const message = `🚨 **Critical Negative Feedback Alerts**\n${criticalAlerts.map(a => `- ${a.message}`).join('\n')}`;
+        sendNotification('critical', 'Negative Feedback Critical Alert', message).catch(console.error);
+      }
+      
+      const warningAlerts = alerts.filter(a => a.level === 'warning');
+      if (warningAlerts.length > 0) {
+        const message = `⚠️ **Negative Feedback Warnings**\n${warningAlerts.map(a => `- ${a.message}`).join('\n')}`;
+        sendNotification('warning', 'Negative Feedback Warning', message).catch(console.error);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, alerts, scores }));
+    return;
+  } else if (req.url === '/api/negative-feedback/acknowledge' && req.method === 'POST') {
+    // Acknowledge an alert
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { agentId } = JSON.parse(body);
+        const alert = negativeFeedbackAlerts.find(a => a.agentId === agentId && !a.acknowledged);
+        if (alert) {
+          alert.acknowledged = true;
+          alert.acknowledgedAt = new Date().toISOString();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, alert }));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No active alert found for this agent' }));
+        }
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
     return;
   } else if (req.url.startsWith('/api/webhooks/github') && req.method === 'POST') {
     // GitHub webhook endpoint for PR events
