@@ -16,6 +16,7 @@ import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
 import TokenAllocation from './components/TokenAllocation'
+import { TempWorkerPanel } from './components/TempWorkerPanel'
 
 // 項目類型
 interface Project {
@@ -58,7 +59,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation' | 'tempworkers'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -447,6 +448,12 @@ function App() {
             >
               ⚖️ Token分配
             </button>
+            <button
+              className={`nav-tab ${activeTab === 'tempworkers' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tempworkers')}
+            >
+              👷 臨時工
+            </button>
           </nav>
         </div>
         <div className="header-actions">
@@ -695,6 +702,10 @@ function App() {
           </div>
         ) : activeTab === 'allocation' ? (
           <TokenAllocation />
+        ) : activeTab === 'tempworkers' ? (
+          <div style={{ padding: '24px', maxHeight: 'calc(100vh - 80px)', overflowY: 'auto' }}>
+            <TempWorkerPanel />
+          </div>
         ) : (
           <PerformanceDashboard />
         )}
