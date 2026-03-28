@@ -1080,6 +1080,126 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'All scores reset' }));
     return;
+  // ==================== Progress Prediction API ====================
+  } else if (req.url === '/api/progress-prediction' && req.method === 'GET') {
+    // Progress Prediction API - Predict issue completion time based on historical data
+    const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+    const days = parseInt(urlObj.searchParams.get('days') || '60'); // Look at last 60 days
+    const issueNumber = urlObj.searchParams.get('issue');
+    
+    try {
+      // Calculate date range for closed issues
+      const now = new Date();
+      const since = new Date(now);
+      since.setDate(since.getDate() - days);
+      
+      // Get closed issues using gh CLI
+      const closedIssuesCmd = `gh api repos/${REPO_OWNER}/${REPO_NAME}/issues?state=closed&per_page=100&sort=updated&direction=desc`;
+      const closedIssuesRaw = execSync(closedIssuesCmd, { encoding: 'utf-8' });
+      const allClosedIssues = JSON.parse(closedIssuesRaw);
+      
+      // Get open issues for current status
+      const openIssuesCmd = `gh api repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open&per_page=100`;
+      const openIssuesRaw = execSync(openIssuesCmd, { encoding: 'utf-8' });
+      const allOpenIssues = JSON.parse(openIssuesRaw);
+      
+      // Calculate average stage durations from closed issues
+      // We'll use label events as proxy for stage transitions
+      const stageDurations = {
+        'todo_to_inprogress': [],
+        'inprogress_to_review': [],
+        'review_to_done': []
+      };
+      
+      // For closed issues, estimate stage durations based on labels and timeline
+      for (const issue of allClosedIssues.slice(0, 50)) {
+        if (issue.pull_request) continue;
+        
+        const created = new Date(issue.created_at);
+        const closed = new Date(issue.closed_at);
+        const totalDays = (closed - created) / (1000 * 60 * 60 * 24);
+        
+        // Estimate stage durations based on labels
+        const labels = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+        const hasArtApproved = labels.includes('art-approved');
+        const hasFuncApproved = labels.includes('func-approved');
+        
+        // Simple heuristic: 30% in progress, 50% in review, 20% in done/todo
+        if (totalDays > 0) {
+          stageDurations.todo_to_inprogress.push(totalDays * 0.2);
+          stageDurations.inprogress_to_review.push(totalDays * 0.5);
+          stageDurations.review_to_done.push(totalDays * 0.3);
+        }
+      }
+      
+      // Calculate averages
+      const avgDurations = {
+        todoToInProgress: stageDurations.todo_to_inprogress.length > 0 
+          ? stageDurations.todo_to_inprogress.reduce((a, b) => a + b, 0) / stageDurations.todo_to_inprogress.length * 24 
+          : 24, // hours
+        inProgressToReview: stageDurations.inprogress_to_review.length > 0 
+          ? stageDurations.inprogress_to_review.reduce((a, b) => a + b, 0) / stageDurations.inprogress_to_review.length * 24 
+          : 48, // hours
+        reviewToDone: stageDurations.review_to_done.length > 0 
+          ? stageDurations.review_to_done.reduce((a, b) => a + b, 0) / stageDurations.review_to_done.length * 24 
+          : 24 // hours
+      };
+      
+      // If specific issue requested, get its current status
+      let prediction = null;
+      if (issueNumber) {
+        const openIssue = allOpenIssues.find(i => i.number === parseInt(issueNumber));
+        if (openIssue) {
+          const created = new Date(openIssue.created_at);
+          const nowDate = new Date();
+          const daysElapsed = (nowDate - created) / (1000 * 60 * 60 * 24);
+          
+          const labels = openIssue.labels.map(l => typeof l === 'string' ? l : l.name);
+          const isInProgress = labels.includes('in-progress') || labels.includes('backend') || labels.includes('frontend');
+          const isReview = labels.includes('func-review-needed') || labels.includes('art-review-needed');
+          const isDone = openIssue.state === 'closed';
+          
+          let currentStage = 'todo';
+          let remainingHours = avgDurations.todoToInProgress + avgDurations.inProgressToReview + avgDurations.reviewToDone;
+          let elapsedHours = daysElapsed * 24;
+          
+          if (isDone) {
+            currentStage = 'done';
+            remainingHours = 0;
+          } else if (isReview) {
+            currentStage = 'waiting_for_review';
+            remainingHours = avgDurations.reviewToDone;
+            elapsedHours = daysElapsed * 24 - avgDurations.todoToInProgress - avgDurations.inProgressToReview;
+          } else if (isInProgress) {
+            currentStage = 'in_progress';
+            remainingHours = avgDurations.inProgressToReview + avgDurations.reviewToDone;
+            elapsedHours = daysElapsed * 24 - avgDurations.todoToInProgress;
+          }
+          
+          prediction = {
+            issueNumber: openIssue.number,
+            title: openIssue.title,
+            currentStage,
+            createdAt: openIssue.created_at,
+            daysElapsed: Math.round(daysElapsed * 10) / 10,
+            estimatedRemainingHours: Math.round(remainingHours * 10) / 10,
+            estimatedCompletionDate: new Date(Date.now() + remainingHours * 60 * 60 * 1000).toISOString()
+          };
+        }
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        averages: avgDurations,
+        sampleSize: allClosedIssues.filter(i => !i.pull_request).length,
+        prediction
+      }));
+    } catch (err) {
+      console.error('Error calculating progress prediction:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
   } else if (req.url.startsWith('/api/dod-compliance') && req.method === 'GET') {
     // DoD 合規率統計 API
     // Query: days=30 (default), startDate, endDate
