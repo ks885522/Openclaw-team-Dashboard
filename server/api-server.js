@@ -1020,6 +1020,193 @@ const server = http.createServer((req, res) => {
         timestamp: new Date().toISOString()
       }));
     }
+  // ==================== Token Cycle Consumption API ====================
+  // 5-hour cycle token consumption tracking
+  const CYCLE_DURATION_MS = 5 * 60 * 60 * 1000; // 5 hours in ms
+  const DEFAULT_TOKEN_BUDGET = 1000000; // 1M tokens per cycle per agent
+
+  // In-memory token cycle tracking (reset on server restart)
+  let tokenCycles = {};
+
+  /**
+   * Get current cycle info for an agent
+   */
+  function getCurrentCycleInfo(agentId) {
+    const now = Date.now();
+    const cycleStart = Math.floor(now / CYCLE_DURATION_MS) * CYCLE_DURATION_MS;
+    const cycleEnd = cycleStart + CYCLE_DURATION_MS;
+    return { cycleStart, cycleEnd };
+  }
+
+  /**
+   * Record token usage for an agent
+   */
+  function recordTokenUsage(agentId, inputTokens, outputTokens) {
+    const { cycleStart, cycleEnd } = getCurrentCycleInfo(agentId);
+    const cycleKey = `${agentId}_${cycleStart}`;
+
+    if (!tokenCycles[cycleKey]) {
+      tokenCycles[cycleKey] = {
+        agentId,
+        cycleStart,
+        cycleEnd,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        estimatedCost: 0,
+        requestCount: 0
+      };
+    }
+
+    const COST_PER_1K_INPUT = 0.15;
+    const COST_PER_1K_OUTPUT = 0.60;
+
+    tokenCycles[cycleKey].totalInputTokens += inputTokens;
+    tokenCycles[cycleKey].totalOutputTokens += outputTokens;
+    tokenCycles[cycleKey].totalTokens += inputTokens + outputTokens;
+    tokenCycles[cycleKey].estimatedCost += 
+      (inputTokens / 1000 * COST_PER_1K_INPUT) + 
+      (outputTokens / 1000 * COST_PER_1K_OUTPUT);
+    tokenCycles[cycleKey].requestCount++;
+  }
+
+  /**
+   * Get token cycles for display
+   */
+  function getTokenCycles(days = 1) {
+    const now = Date.now();
+    const startTime = now - (days * 24 * 60 * 60 * 1000);
+    const endTime = now;
+
+    // Get all cycles in the time range
+    const cycles = [];
+    const logs = readAgentLogs().filter(log => {
+      const logTime = log.timestamp ? new Date(log.timestamp).getTime() : 0;
+      return logTime >= startTime && logTime <= endTime;
+    });
+
+    // Group logs by agent and cycle
+    const agentCycleMap = {};
+    logs.forEach(log => {
+      const agentId = log.agent_id || 'engineering';
+      const logTime = log.timestamp ? new Date(log.timestamp).getTime() : now;
+      const cycleStart = Math.floor(logTime / CYCLE_DURATION_MS) * CYCLE_DURATION_MS;
+      const cycleKey = `${agentId}_${cycleStart}`;
+
+      if (!agentCycleMap[cycleKey]) {
+        agentCycleMap[cycleKey] = {
+          agentId,
+          cycleStart,
+          cycleEnd: cycleStart + CYCLE_DURATION_MS,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          requestCount: 0,
+          tasks: []
+        };
+      }
+
+      // Estimate tokens per task
+      let inputTokens = 3000;
+      let outputTokens = 1500;
+      if (log.task_type === 'requirements' || log.task_type === 'engineering') {
+        inputTokens = 5000;
+        outputTokens = 3000;
+      } else if (log.task_type === 'art-design') {
+        inputTokens = 2000;
+        outputTokens = 1000;
+      }
+
+      const COST_PER_1K_INPUT = 0.15;
+      const COST_PER_1K_OUTPUT = 0.60;
+
+      agentCycleMap[cycleKey].totalInputTokens += inputTokens;
+      agentCycleMap[cycleKey].totalOutputTokens += outputTokens;
+      agentCycleMap[cycleKey].totalTokens += inputTokens + outputTokens;
+      agentCycleMap[cycleKey].estimatedCost += 
+        (inputTokens / 1000 * COST_PER_1K_INPUT) + 
+        (outputTokens / 1000 * COST_PER_1K_OUTPUT);
+      agentCycleMap[cycleKey].requestCount++;
+      if (log.task_id) {
+        agentCycleMap[cycleKey].tasks.push(log.task_id);
+      }
+    });
+
+    // Convert to array and sort by cycle start time
+    return Object.values(agentCycleMap).sort((a, b) => b.cycleStart - a.cycleStart);
+  }
+
+  } else if (req.url.startsWith('/api/token/cycles') && req.method === 'GET') {
+    // Token cycles endpoint - returns consumption per 5-hour cycle
+    try {
+      const url = new URL(req.url, `http://localhost:${PORT}`);
+      const days = parseInt(url.searchParams.get('days') || '1', 10);
+      const agentId = url.searchParams.get('agent'); // Optional filter
+
+      let cycles = getTokenCycles(days);
+
+      // Filter by agent if specified
+      if (agentId) {
+        cycles = cycles.filter(c => c.agentId === agentId);
+      }
+
+      // Add budget info and warning status
+      const cyclesWithBudget = cycles.map(cycle => {
+        const remaining = DEFAULT_TOKEN_BUDGET - cycle.totalTokens;
+        const remainingPercent = (remaining / DEFAULT_TOKEN_BUDGET) * 100;
+        return {
+          ...cycle,
+          budget: DEFAULT_TOKEN_BUDGET,
+          remaining,
+          remainingPercent,
+          isLow: remainingPercent < 20,
+          cycleStartISO: new Date(cycle.cycleStart).toISOString(),
+          cycleEndISO: new Date(cycle.cycleEnd).toISOString()
+        };
+      });
+
+      // Group by agent for easier frontend consumption
+      const byAgent = {};
+      Object.keys(AGENT_NAME_MAP).forEach(aid => {
+        byAgent[aid] = {
+          agentId: aid,
+          name: getAgentName(aid),
+          emoji: getAgentEmoji(aid),
+          cycles: cyclesWithBudget.filter(c => c.agentId === aid)
+        };
+      });
+
+      // Current cycle info
+      const now = Date.now();
+      const currentCycleStart = Math.floor(now / CYCLE_DURATION_MS) * CYCLE_DURATION_MS;
+      const currentCycleEnd = currentCycleStart + CYCLE_DURATION_MS;
+
+      const response = {
+        cycleDurationHours: 5,
+        budgetPerCycle: DEFAULT_TOKEN_BUDGET,
+        currentCycle: {
+          start: new Date(currentCycleStart).toISOString(),
+          end: new Date(currentCycleEnd).toISOString()
+        },
+        cycles: cyclesWithBudget,
+        byAgent,
+        summary: {
+          totalTokensUsed: cyclesWithBudget.reduce((sum, c) => sum + c.totalTokens, 0),
+          totalCostUSD: cyclesWithBudget.reduce((sum, c) => sum + c.estimatedCost, 0),
+          totalRequests: cyclesWithBudget.reduce((sum, c) => sum + c.requestCount, 0),
+          lowBudgetAgents: cyclesWithBudget.filter(c => c.isLow).map(c => c.agentId)
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(response));
+    } catch (err) {
+      console.error('Error fetching token cycles:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message, timestamp: new Date().toISOString() }));
+    }
   // ==================== SSE (Server-Sent Events) Endpoints ====================
   } else if (req.url.startsWith('/api/events') && req.method === 'GET') {
     // SSE endpoint for real-time log streaming
