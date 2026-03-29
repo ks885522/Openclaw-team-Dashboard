@@ -246,6 +246,184 @@ const agentScores = {};
 const scoreHistory = [];
 const MAX_SCORE_HISTORY = 500;
 
+// Temporary Workers storage (in-memory)
+const tempWorkers = {};
+const TEMP_WORKER_PORT_RANGE = { min: 29100, max: 29200 };
+let tempWorkerPortCursor = TEMP_WORKER_PORT_RANGE.min;
+const TEMP_WORKER_OPERATION_LOG_MAX = 500;
+
+// Temporary Worker operation log
+const tempWorkerOpLog = [];
+
+/**
+ * Log a temporary worker state change
+ */
+function logTempWorkerOp(workerId, action, fromStatus, toStatus, details = {}) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    workerId,
+    action,
+    fromStatus,
+    toStatus,
+    ...details
+  };
+  tempWorkerOpLog.unshift(entry);
+  if (tempWorkerOpLog.length > TEMP_WORKER_OPERATION_LOG_MAX) {
+    tempWorkerOpLog.pop();
+  }
+  console.log(`[TempWorker:${action}] ${workerId} ${fromStatus} → ${toStatus}`);
+  return entry;
+}
+
+/**
+ * Get temporary worker operation log (recent)
+ */
+function getTempWorkerOpLog(workerId, limit = 50) {
+  const logs = workerId
+    ? tempWorkerOpLog.filter(l => l.workerId === workerId)
+    : tempWorkerOpLog;
+  return logs.slice(0, limit);
+}
+
+// Valid state transitions for temporary workers
+const TEMP_WORKER_VALID_TRANSITIONS = {
+  'created':      ['starting', 'terminating'],
+  'starting':     ['running', 'terminating'],
+  'running':      ['stopping', 'terminating'],
+  'stopping':     ['stopped', 'terminating'],
+  'stopped':      ['starting', 'terminating'],
+  'terminating':  ['terminated'],
+  'terminated':   [] // terminal state
+};
+
+/**
+ * Validate if a state transition is allowed
+ */
+function canTransitionTo(currentStatus, targetStatus) {
+  const allowed = TEMP_WORKER_VALID_TRANSITIONS[currentStatus] || [];
+  return allowed.includes(targetStatus);
+}
+
+/**
+ * Get next available port for temporary worker
+ */
+function getNextTempWorkerPort() {
+  const port = tempWorkerPortCursor;
+  tempWorkerPortCursor++;
+  if (tempWorkerPortCursor > TEMP_WORKER_PORT_RANGE.max) {
+    tempWorkerPortCursor = TEMP_WORKER_PORT_RANGE.min;
+  }
+  return port;
+}
+
+/**
+ * Create a temporary worker instance
+ */
+function createTempWorker(name, description) {
+  const id = `tw-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const port = getNextTempWorkerPort();
+  
+  tempWorkers[id] = {
+    id,
+    name,
+    description: description || '',
+    status: 'created', // created, starting, running, stopping, stopped, terminating, terminated
+    port,
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    stoppedAt: null,
+    terminatedAt: null
+  };
+  
+  return tempWorkers[id];
+}
+
+/**
+ * Start a temporary worker
+ * Valid from: created, stopped
+ */
+function startTempWorker(id) {
+  const worker = tempWorkers[id];
+  if (!worker) {
+    return { success: false, error: 'Worker not found' };
+  }
+
+  const allowedFrom = ['created', 'stopped'];
+  if (!allowedFrom.includes(worker.status)) {
+    return {
+      success: false,
+      error: `Cannot start worker from '${worker.status}' state. Worker must be in 'created' or 'stopped' state.`
+    };
+  }
+
+  const prevStatus = worker.status;
+  worker.status = 'starting';
+  logTempWorkerOp(worker.id, 'start', prevStatus, 'starting');
+
+  // Simulate async start (in real impl would spawn process/docker)
+  worker.status = 'running';
+  worker.startedAt = new Date().toISOString();
+  logTempWorkerOp(worker.id, 'start', 'starting', 'running');
+
+  return { success: true, worker };
+}
+
+/**
+ * Stop a temporary worker
+ * Valid from: running, starting
+ */
+function stopTempWorker(id) {
+  const worker = tempWorkers[id];
+  if (!worker) {
+    return { success: false, error: 'Worker not found' };
+  }
+
+  const allowedFrom = ['running', 'starting'];
+  if (!allowedFrom.includes(worker.status)) {
+    return {
+      success: false,
+      error: `Cannot stop worker from '${worker.status}' state. Worker must be in 'running' or 'starting' state.`
+    };
+  }
+
+  const prevStatus = worker.status;
+  worker.status = 'stopping';
+  logTempWorkerOp(worker.id, 'stop', prevStatus, 'stopping');
+
+  worker.status = 'stopped';
+  worker.stoppedAt = new Date().toISOString();
+  logTempWorkerOp(worker.id, 'stop', 'stopping', 'stopped');
+
+  return { success: true, worker };
+}
+
+/**
+ * Terminate (fire) a temporary worker
+ * Valid from: any non-terminated state
+ */
+function terminateTempWorker(id) {
+  const worker = tempWorkers[id];
+  if (!worker) {
+    return { success: false, error: 'Worker not found' };
+  }
+  if (worker.status === 'terminated') {
+    return { success: false, error: 'Worker already terminated' };
+  }
+  if (worker.status === 'terminating') {
+    return { success: false, error: 'Worker is already being terminated' };
+  }
+
+  const prevStatus = worker.status;
+  worker.status = 'terminating';
+  logTempWorkerOp(worker.id, 'terminate', prevStatus, 'terminating');
+
+  worker.status = 'terminated';
+  worker.terminatedAt = new Date().toISOString();
+  logTempWorkerOp(worker.id, 'terminate', 'terminating', 'terminated');
+
+  return { success: true, worker };
+}
+
 /**
  * Update agent score with event
  */
@@ -2010,6 +2188,152 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: err.message }));
       }
     });
+  } else if (req.url.startsWith('/api/temp-workers') && req.method === 'POST') {
+    // Create a new temporary worker
+    if (req.url === '/api/temp-workers') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const { name, description } = data;
+          
+          if (!name) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required field: name' }));
+            return;
+          }
+          
+          const worker = createTempWorker(name, description);
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, worker }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON: ' + err.message }));
+        }
+      });
+      return;
+    }
+    
+    // Start a temporary worker: POST /api/temp-workers/:id/start
+    const startMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)\/start$/);
+    if (startMatch) {
+      const workerId = startMatch[1];
+      const result = startTempWorker(workerId);
+      
+      if (!result.success) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: result.error }));
+        return;
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+    
+    // Stop a temporary worker: POST /api/temp-workers/:id/stop
+    const stopMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)\/stop$/);
+    if (stopMatch) {
+      const workerId = stopMatch[1];
+      const result = stopTempWorker(workerId);
+      
+      if (!result.success) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: result.error }));
+        return;
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    // Terminate a temporary worker: POST /api/temp-workers/:id/terminate
+    const termMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)\/terminate$/);
+    if (termMatch) {
+      const workerId = termMatch[1];
+      const result = terminateTempWorker(workerId);
+
+      if (!result.success) {
+        const statusCode = result.error === 'Worker not found' ? 404 : 400;
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: result.error }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found. Use: POST /api/temp-workers, POST /api/temp-workers/:id/start, POST /api/temp-workers/:id/stop, POST /api/temp-workers/:id/terminate' }));
+  } else if (req.url.startsWith('/api/temp-workers') && req.method === 'GET') {
+    // List all temporary workers: GET /api/temp-workers
+    if (req.url === '/api/temp-workers') {
+      const workers = Object.values(tempWorkers);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ workers, count: workers.length }));
+      return;
+    }
+    
+    // Get a specific temporary worker: GET /api/temp-workers/:id
+    const getMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)$/);
+    if (getMatch) {
+      const workerId = getMatch[1];
+      const worker = tempWorkers[workerId];
+
+      if (!worker) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Worker not found' }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ worker }));
+      return;
+    }
+
+    // Get operation log for a worker: GET /api/temp-workers/:id/logs
+    const logsMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)\/logs$/);
+    if (logsMatch) {
+      const workerId = logsMatch[1];
+      const worker = tempWorkers[workerId];
+      if (!worker) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Worker not found' }));
+        return;
+      }
+      const limit = parseInt(new URLSearchParams(req.url.split('?')[1] || '').get('limit') || '50');
+      const logs = getTempWorkerOpLog(workerId, limit);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ workerId, logs, count: logs.length }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found. Use: GET /api/temp-workers, GET /api/temp-workers/:id, GET /api/temp-workers/:id/logs' }));
+  } else if (req.url.startsWith('/api/temp-workers') && req.method === 'DELETE') {
+    // Terminate (fire) a temporary worker: DELETE /api/temp-workers/:id
+    const deleteMatch = req.url.match(/^\/api\/temp-workers\/([^/]+)$/);
+    if (deleteMatch) {
+      const workerId = deleteMatch[1];
+      const result = terminateTempWorker(workerId);
+      
+      if (!result.success) {
+        res.writeHead(result.error === 'Worker not found' ? 404 : 400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: result.error }));
+        return;
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+    
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found. Use: DELETE /api/temp-workers/:id' }));
   } else {
     res.writeHead(404);
     res.end('Not Found');
