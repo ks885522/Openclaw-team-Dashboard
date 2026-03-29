@@ -1233,6 +1233,248 @@ body {
   color: var(--text-muted);
 }
 
+/* ==================== Trust Score Dashboard ==================== */
+.trust-score-dashboard {
+  padding: 20px;
+}
+
+.trust-score-dashboard.loading,
+.trust-score-dashboard.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.trust-score-dashboard .loading-spinner,
+.trust-score-dashboard .error-message {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.trust-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.trust-header h2 {
+  font-size: 24px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.trust-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .trust-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.trust-main h3,
+.trust-history h3 {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.trust-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.trust-item.rank-1 {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 197, 94, 0.1));
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.trust-item.rank-2 {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(128, 128, 128, 0.1));
+  border-color: rgba(192, 192, 192, 0.3);
+}
+
+.trust-item.rank-3 {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(180, 83, 9, 0.1));
+  border-color: rgba(205, 127, 50, 0.3);
+}
+
+.rank-badge {
+  font-size: 16px;
+  min-width: 28px;
+  text-align: center;
+}
+
+.agent-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.agent-info .emoji {
+  font-size: 20px;
+}
+
+.agent-info .name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.trust-bar-container {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.trust-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.score-value {
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+
+.grade-badge {
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.trust-history {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.trust-history .history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.trust-history .history-item .emoji {
+  font-size: 16px;
+}
+
+.trust-history .history-item .agent {
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.trust-history .history-item .issue-num {
+  color: var(--text-muted);
+}
+
+.trust-history .history-item .timestamp {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.trust-rules {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.trust-rules h4 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.trust-rules ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.trust-rules li {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.trust-rules .points {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.trust-rules .points.positive {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.trust-rules .points.negative {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.trust-rules .points.base {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+/* Compact trust score (for sidebar) */
+.trust-score-dashboard.compact {
+  padding: 12px;
+}
+
+.trust-score-dashboard.compact h3 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.trust-score-dashboard.compact .trust-item {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.trust-score-dashboard.compact .name {
+  flex: 1;
+}
+
+.trust-score-dashboard.compact .score {
+  font-weight: 600;
+}
+
 /* ==================== 流暢動畫效果 (#109) ==================== */
 
 /* 卡片基礎動畫 */
