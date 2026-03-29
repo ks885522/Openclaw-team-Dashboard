@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   e2e-test:
     name: Run E2E Tests
@@ -27,6 +32,11 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Install missing system dependencies
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 || true
 
       - name: Run E2E tests
         run: npm run test:e2e -- --reporter=line
@@ -57,37 +67,31 @@ jobs:
           script: |
             const fs = require('fs');
             const resultsPath = 'e2e/results.json';
-            
             let summary = '### ✅ E2E 測試結果\n\n';
-            
             if (fs.existsSync(resultsPath)) {
               const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
               const passed = results.stats?.passed || 0;
               const failed = results.stats?.failed || 0;
               const total = results.stats?.total || 0;
-              
               summary += `- 通過: ${passed}\n`;
               summary += `- 失敗: ${failed}\n`;
               summary += `- 總計: ${total}\n`;
-              
-              if (failed > 0) {
-                summary += '\n⚠️ 有測試失敗，請檢查截圖和日誌。\n';
-              } else {
-                summary += '\n🎉 所有測試通過！\n';
-              }
+              summary += failed > 0 ? '\n⚠️ 有測試失敗，請檢查截圖和日誌。\n' : '\n🎉 所有測試通過！\n';
             } else {
               summary += '無法讀取測試結果\n';
             }
-            
             // Find existing comment
+            const prNumber = context.payload.pull_request?.number;
+            if (!prNumber) {
+              console.log('No PR number found, skipping comment');
+              return;
+            }
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: prNumber,
             });
-            
             const e2eComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('E2E 測試結果'));
-            
             if (e2eComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -99,7 +103,8 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 body: summary,
               });
             }
+
