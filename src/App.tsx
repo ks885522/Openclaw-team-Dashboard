@@ -16,6 +16,8 @@ import { DoDComplianceDashboard } from './components/DoDComplianceDashboard'
 import AlertHistory from './components/AlertHistory'
 import { EvidenceComparison } from './components/EvidenceComparison'
 import TokenAllocation from './components/TokenAllocation'
+import { TrustScoreDashboard } from './components/TrustScoreDashboard'
+// [編譯器] #187 Trust Score (merged with DoD+TokenAllocation)
 
 // 項目類型
 interface Project {
@@ -58,7 +60,7 @@ function App() {
   const [costMetrics, setCostMetrics] = useState<PerformanceMetrics['cost'] | null>(null)
   const [costLoading, setCostLoading] = useState(true)
   const [costDays, setCostDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'performance' | 'scores' | 'trust' | 'topology' | 'timeline' | 'alerts' | 'thinking' | 'dod' | 'evidence' | 'allocation'>('dashboard')
 
   useEffect(() => {
     // 初始載入
@@ -406,6 +408,12 @@ function App() {
               🏈 積分榜
             </button>
             <button 
+              className={`nav-tab ${activeTab === 'trust' ? 'active' : ''}`}
+              onClick={() => setActiveTab('trust')}
+            >
+              🔒 誠信評分
+            </button>
+            <button 
               className={`nav-tab ${activeTab === 'topology' ? 'active' : ''}`}
               onClick={() => setActiveTab('topology')}
             >
@@ -674,6 +682,8 @@ function App() {
         </>
         ) : activeTab === 'scores' ? (
           <ScoreLeaderboard />
+        ) : activeTab === 'trust' ? (
+          <TrustScoreDashboard />
         ) : activeTab === 'topology' ? (
           <WorkflowTopology />
         ) : activeTab === 'timeline' ? (

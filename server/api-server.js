@@ -20,6 +20,214 @@ const SCORE_CONFIG = {
   criticalBugFound: 15   // 發現關鍵 Bug
 };
 
+// Trust Score configuration (100-point system)
+const TRUST_SCORE_CONFIG = {
+  initialScore: 100,           // 初始誠信分數
+  qaRejectedPenalty: 10,       // QA 駁回一次扣分
+  taskCompletedBonus: 2,        // 完成任務加一分
+  reviewApprovedBonus: 1,      // 審查通過加一分
+  criticalIssuePenalty: 20,    // 嚴重問題扣分
+  maxScore: 100,
+  minScore: 0
+};
+
+// Negative Feedback Integration Configuration (Issue #188)
+const NEGATIVE_FEEDBACK_CONFIG = {
+  warningThreshold: 70,        // Warning when trust score drops below 70
+  criticalThreshold: 40,       // Critical when trust score drops below 40
+  checkIntervalMs: 60000,      // Check every 60 seconds
+  autoPauseThreshold: 20,      // Auto-pause agent when score drops below 20
+  quotaReductionPercent: 50,    // Reduce quota by 50% when critical
+  notificationsEnabled: true    // Send notifications when triggered
+};
+
+// Negative feedback state
+const negativeFeedbackAlerts = [];  // [{ agentId, level, message, triggeredAt, actionTaken, acknowledged }]
+let negativeFeedbackConfig = { ...NEGATIVE_FEEDBACK_CONFIG };
+
+/**
+ * Check trust scores and trigger negative feedback alerts
+ */
+function checkNegativeFeedback(trustScoreData) {
+  const alerts = [];
+  const now = new Date().toISOString();
+  
+  for (const [agentId, score] of Object.entries(trustScoreData)) {
+    const previousAlert = negativeFeedbackAlerts.find(a => a.agentId === agentId && !a.acknowledged);
+    
+    if (score <= negativeFeedbackConfig.criticalThreshold) {
+      // Critical level
+      const actionTaken = [];
+      
+      if (score <= negativeFeedbackConfig.autoPauseThreshold) {
+        // Auto-pause agent
+        actionTaken.push(`auto-pause: Agent paused due to critical trust score (${score})`);
+      } else if (score <= negativeFeedbackConfig.criticalThreshold) {
+        // Reduce quota
+        actionTaken.push(`quota-reduction: Quota reduced by ${negativeFeedbackConfig.quotaReductionPercent}%`);
+      }
+      
+      const alert = {
+        agentId,
+        level: 'critical',
+        score,
+        message: `Critical trust score ${score} for ${agentId}. Actions taken: ${actionTaken.join(', ')}`,
+        triggeredAt: now,
+        actionTaken,
+        acknowledged: false
+      };
+      alerts.push(alert);
+      
+      // Update or create alert
+      const existingIndex = negativeFeedbackAlerts.findIndex(a => a.agentId === agentId);
+      if (existingIndex >= 0) {
+        negativeFeedbackAlerts[existingIndex] = alert;
+      } else {
+        negativeFeedbackAlerts.push(alert);
+      }
+      
+    } else if (score <= negativeFeedbackConfig.warningThreshold) {
+      // Warning level
+      const alert = {
+        agentId,
+        level: 'warning',
+        score,
+        message: `Trust score ${score} for ${agentId} is below warning threshold (${negativeFeedbackConfig.warningThreshold})`,
+        triggeredAt: now,
+        actionTaken: [],
+        acknowledged: false
+      };
+      alerts.push(alert);
+      
+      const existingIndex = negativeFeedbackAlerts.findIndex(a => a.agentId === agentId);
+      if (existingIndex >= 0) {
+        negativeFeedbackAlerts[existingIndex] = alert;
+      } else {
+        negativeFeedbackAlerts.push(alert);
+      }
+    } else if (previousAlert) {
+      // Score recovered - acknowledge previous alert
+      previousAlert.acknowledged = true;
+      previousAlert.acknowledgedAt = now;
+    }
+  }
+  
+  return alerts;
+}
+
+// Trust score data
+const trustScores = {};        // { agentId: score }
+const trustScoreHistory = [];  // [{ agentId, eventType, score, timestamp, details }]
+
+/**
+ * Calculate trust scores from GitHub issues with qa-rejected labels
+ */
+function calculateTrustScores() {
+  try {
+    // Get issues with qa-rejected label in last 30 days
+    const issues = execSync(
+      `gh issue list --state all --label qa-rejected --limit 100 --json number,title,createdAt,labels,assignees`,
+      { encoding: 'utf-8' }
+    );
+    const issueList = JSON.parse(issues);
+    
+    // Reset trust scores
+    const newTrustScores = {};
+    Object.keys(AGENT_MAP).forEach(emoji => {
+      const agentId = AGENT_MAP[emoji];
+      newTrustScores[agentId] = TRUST_SCORE_CONFIG.initialScore;
+    });
+    
+    // Count qa-rejected events per agent
+    const rejectionCounts = {};
+    
+    issueList.forEach(issue => {
+      const labels = issue.labels.map(l => l.name);
+      // Find which agent is assigned or mentioned in title
+      for (const [emoji, agentId] of Object.entries(AGENT_MAP)) {
+        if (labels.includes(agentId) || issue.title.includes(emoji) || issue.title.includes(AGENT_NAME_MAP[agentId])) {
+          rejectionCounts[agentId] = (rejectionCounts[agentId] || 0) + 1;
+        }
+      }
+    });
+    
+    // Calculate trust scores
+    for (const agentId of Object.keys(newTrustScores)) {
+      const rejections = rejectionCounts[agentId] || 0;
+      newTrustScores[agentId] = Math.max(
+        TRUST_SCORE_CONFIG.minScore,
+        TRUST_SCORE_CONFIG.initialScore - (rejections * TRUST_SCORE_CONFIG.qaRejectedPenalty)
+      );
+    }
+    
+    return newTrustScores;
+  } catch (err) {
+    console.error('Error calculating trust scores:', err.message);
+    // Return default scores if GitHub API fails
+    const defaultScores = {};
+    Object.values(AGENT_MAP).forEach(agentId => {
+      defaultScores[agentId] = TRUST_SCORE_CONFIG.initialScore;
+    });
+    return defaultScores;
+  }
+}
+
+/**
+ * Get trust score report with history
+ */
+function getTrustScoreReport() {
+  const scores = calculateTrustScores();
+  
+  // Auto-check negative feedback when trust scores are calculated
+  const newAlerts = checkNegativeFeedback(scores);
+  if (newAlerts.length > 0 && negativeFeedbackConfig.notificationsEnabled) {
+    const criticalAlerts = newAlerts.filter(a => a.level === 'critical');
+    if (criticalAlerts.length > 0) {
+      const message = `🚨 **Critical Negative Feedback Alerts**\n${criticalAlerts.map(a => `- ${a.message}`).join('\n')}`;
+      sendNotification('critical', 'Negative Feedback Critical Alert', message).catch(console.error);
+    }
+  }
+  
+  // Get QA rejected issues for history
+  let history = [];
+  try {
+    const issues = execSync(
+      `gh issue list --state all --label qa-rejected --limit 100 --json number,title,createdAt,labels`,
+      { encoding: 'utf-8' }
+    );
+    const issueList = JSON.parse(issues);
+    
+    history = issueList.map(issue => {
+      let agentId = 'unknown';
+      for (const [emoji, id] of Object.entries(AGENT_MAP)) {
+        if (issue.title.includes(emoji) || issue.title.includes(AGENT_NAME_MAP[id])) {
+          agentId = id;
+          break;
+        }
+      }
+      return {
+        issueNumber: issue.number,
+        title: issue.title,
+        agentId,
+        timestamp: issue.createdAt,
+        type: 'qa-rejected'
+      };
+    });
+  } catch (err) {
+    console.error('Error getting trust score history:', err.message);
+  }
+  
+  return {
+    scores,
+    history: history.slice(0, 50), // Last 50 events
+    config: TRUST_SCORE_CONFIG,
+    negativeFeedback: {
+      activeAlerts: negativeFeedbackAlerts.filter(a => !a.acknowledged),
+      config: negativeFeedbackConfig
+    }
+  };
+}
+
 // Agent emoji to name mapping
 const AGENT_MAP = {
   '⚙️': 'engineering',
@@ -1161,6 +1369,129 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
     }
+  // ==================== Trust Score API Endpoints ====================
+  } else if (req.url === '/api/trust-scores' && req.method === 'GET') {
+    // Get trust score report
+    const report = getTrustScoreReport();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(report));
+    return;
+  } else if (req.url === '/api/trust-scores/leaderboard' && req.method === 'GET') {
+    // Get trust scores sorted
+    const scores = calculateTrustScores();
+    const leaderboard = Object.entries(scores)
+      .map(([agentId, score]) => ({ agentId, score }))
+      .sort((a, b) => b.score - a.score);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(leaderboard));
+    return;
+  } else if (req.url === '/api/trust-scores/reset' && req.method === 'POST') {
+    // Reset trust scores
+    Object.values(AGENT_MAP).forEach(agentId => {
+      trustScores[agentId] = TRUST_SCORE_CONFIG.initialScore;
+    });
+    trustScoreHistory.length = 0;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Trust scores reset' }));
+// [編譯器] #187 Trust Score merged with DoD compliance
+    return;
+  // ==================== Negative Feedback API Endpoints (Issue #188) ====================
+  } else if (req.url === '/api/negative-feedback/status' && req.method === 'GET') {
+    // Get current negative feedback status
+    const scores = calculateTrustScores();
+    const alerts = checkNegativeFeedback(scores);
+    const activeAlerts = negativeFeedbackAlerts.filter(a => !a.acknowledged);
+    const recentAlerts = negativeFeedbackAlerts.slice(-20);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      config: negativeFeedbackConfig,
+      activeAlerts,
+      recentAlerts,
+      alertCount: activeAlerts.length,
+      criticalCount: activeAlerts.filter(a => a.level === 'critical').length,
+      warningCount: activeAlerts.filter(a => a.level === 'warning').length,
+      lastChecked: new Date().toISOString()
+    }));
+    return;
+  } else if (req.url === '/api/negative-feedback/config' && req.method === 'GET') {
+    // Get negative feedback configuration
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      config: negativeFeedbackConfig,
+      defaultConfig: NEGATIVE_FEEDBACK_CONFIG
+    }));
+    return;
+  } else if (req.url === '/api/negative-feedback/config' && req.method === 'POST') {
+    // Update negative feedback configuration
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const updates = JSON.parse(body);
+        const allowedKeys = ['warningThreshold', 'criticalThreshold', 'autoPauseThreshold', 'quotaReductionPercent', 'notificationsEnabled'];
+        
+        allowedKeys.forEach(key => {
+          if (updates[key] !== undefined) {
+            negativeFeedbackConfig[key] = updates[key];
+          }
+        });
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, config: negativeFeedbackConfig }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  } else if (req.url === '/api/negative-feedback/check' && req.method === 'POST') {
+    // Manually trigger negative feedback check
+    const scores = calculateTrustScores();
+    const alerts = checkNegativeFeedback(scores);
+    
+    // Send notifications if alerts were triggered and notifications are enabled
+    if (alerts.length > 0 && negativeFeedbackConfig.notificationsEnabled) {
+      const criticalAlerts = alerts.filter(a => a.level === 'critical');
+      if (criticalAlerts.length > 0) {
+        const message = `🚨 **Critical Negative Feedback Alerts**\n${criticalAlerts.map(a => `- ${a.message}`).join('\n')}`;
+        sendNotification('critical', 'Negative Feedback Critical Alert', message).catch(console.error);
+      }
+      
+      const warningAlerts = alerts.filter(a => a.level === 'warning');
+      if (warningAlerts.length > 0) {
+        const message = `⚠️ **Negative Feedback Warnings**\n${warningAlerts.map(a => `- ${a.message}`).join('\n')}`;
+        sendNotification('warning', 'Negative Feedback Warning', message).catch(console.error);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, alerts, scores }));
+    return;
+  } else if (req.url === '/api/negative-feedback/acknowledge' && req.method === 'POST') {
+    // Acknowledge an alert
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const { agentId } = JSON.parse(body);
+        const alert = negativeFeedbackAlerts.find(a => a.agentId === agentId && !a.acknowledged);
+        if (alert) {
+          alert.acknowledged = true;
+          alert.acknowledgedAt = new Date().toISOString();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, alert }));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No active alert found for this agent' }));
+        }
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
     return;
   } else if (req.url.startsWith('/api/webhooks/github') && req.method === 'POST') {
     // GitHub webhook endpoint for PR events
