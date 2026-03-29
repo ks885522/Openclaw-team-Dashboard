@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任務價值排序與 Token 分配建議 - 設計稿</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Primary Colors */
+      --primary: #0066FF;
+      --secondary: #6B4EFF;
+      --accent: #00D4FF;
+      
+      /* Background Colors */
+      --bg-dark: #0A0E17;
+      --bg-card: #151B26;
+      --bg-light: #1E2533;
+      --border: #2A3444;
+      
+      /* Text Colors */
+      --text-primary: #FFFFFF;
+      --text-secondary: #8B95A5;
+      --text-muted: #5C6577;
+      
+      /* Priority Colors */
+      --priority-p0: #EF4444;
+      --priority-p1: #F59E0B;
+      --priority-p2: #6B7280;
+      
+      /* Status Colors */
+      --status-active: #10B981;
+      --status-paused: #F59E0B;
+      --status-offline: #EF4444;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    
+    .header-badge {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    
+    /* Token Status Bar */
+    .token-status-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    
+    .token-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .token-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .token-icon.p0 { background: rgba(239, 68, 68, 0.15); }
+    .token-icon.p1 { background: rgba(245, 158, 11, 0.15); }
+    .token-icon.p2 { background: rgba(107, 114, 128, 0.15); }
+    
+    .token-info .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .token-info .value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    .token-info .value.p0 { color: var(--priority-p0); }
+    .token-info .value.p1 { color: var(--priority-p1); }
+    .token-info .value.p2 { color: var(--priority-p2); }
+    
+    .token-info .sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    .token-divider {
+      width: 1px;
+      height: 40px;
+      background: var(--border);
+    }
+    
+    .threshold-warning {
+      flex: 1;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid var(--priority-p1);
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .threshold-warning .icon {
+      font-size: 16px;
+    }
+    
+    .threshold-warning .text {
+      font-size: 12px;
+      color: var(--priority-p1);
+    }
+    
+    .threshold-warning .action {
+      margin-left: auto;
+      background: var(--priority-p1);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+    }
+    
+    /* Task List */
+    .task-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .task-section-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .task-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .task-count {
+      background: var(--bg-light);
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .sort-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .sort-btn {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .sort-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    
+    .task-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .task-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      transition: background 0.2s;
+    }
+    
+    .task-item:last-child {
+      border-bottom: none;
+    }
+    
+    .task-item:hover {
+      background: var(--bg-light);
+    }
+    
+    .task-item.paused {
+      opacity: 0.6;
+    }
+    
+    .priority-badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: center;
+    }
+    
+    .priority-badge.p0 {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--priority-p0);
+    }
+    
+    .priority-badge.p1 {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--priority-p1);
+    }
+    
+    .priority-badge.p2 {
+      background: rgba(107, 114, 128, 0.15);
+      color: var(--priority-p2);
+    }
+    
+    .task-info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .task-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .task-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    
+    .task-meta .agent {
+      color: var(--text-secondary);
+    }
+    
+    .task-token {
+      text-align: right;
+      margin-right: 8px;
+    }
+    
+    .task-token .value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .task-token .sub {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    
+    .task-actions {
+      display: flex;
+      gap: 6px;
+    }
+    
+    .task-action-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-light);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    
+    .task-action-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    
+    .task-action-btn.pause:hover {
+      background: var(--priority-p1);
+      border-color: var(--priority-p1);
+    }
+    
+    .task-action-btn.resume {
+      background: var(--status-active);
+      border-color: var(--status-active);
+      color: white;
+    }
+    
+    .task-action-btn.resume:hover {
+      background: #0D9668;
+      border-color: #0D9668;
+    }
+    
+    /* Suggestion Card */
+    .suggestion-card {
+      background: linear-gradient(135deg, rgba(0, 102, 255, 0.1), rgba(107, 78, 255, 0.1));
+      border: 1px solid var(--primary);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    
+    .suggestion-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .suggestion-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .suggestion-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .suggestion-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .suggestion-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .suggestion-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    
+    .suggestion-item .step-number {
+      width: 24px;
+      height: 24px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+    
+    .suggestion-item .step-text {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    
+    .suggestion-item .step-text strong {
+      color: var(--text-primary);
+    }
+    
+    .suggestion-item .step-action {
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    
+    .suggestion-item .step-action:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    
+    .suggestion-item .step-done {
+      background: var(--status-active);
+      border: none;
+      color: white;
+      cursor: default;
+    }
+    
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    /* Allocation Breakdown */
+    .allocation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .allocation-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .allocation-priority {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    
+    .allocation-priority.p0 { background: rgba(239, 68, 68, 0.15); color: var(--priority-p0); }
+    .allocation-priority.p1 { background: rgba(245, 158, 11, 0.15); color: var(--priority-p1); }
+    .allocation-priority.p2 { background: rgba(107, 114, 128, 0.15); color: var(--priority-p2); }
+    
+    .allocation-bar-container {
+      flex: 1;
+    }
+    
+    .allocation-bar-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    
+    .allocation-bar-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    
+    .allocation-bar-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .allocation-bar {
+      height: 8px;
+      background: var(--bg-light);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .allocation-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+    
+    .allocation-bar-fill.p0 { background: var(--priority-p0); }
+    .allocation-bar-fill.p1 { background: var(--priority-p1); }
+    .allocation-bar-fill.p2 { background: var(--priority-p2); }
+    
+    /* Design Spec Footer */
+    .design-footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .design-spec {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'Courier New', monospace;
+    }
+    
+    .design-spec span {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">⚡</div>
+      <h1 class="header-title">OpenClaw Team Dashboard</h1>
+      <span class="header-badge">設計稿 · Issue #180</span>
+    </div>
+  </header>
+  
+  <!-- Token Status Bar -->
+  <div class="token-status-bar">
+    <div class="token-item">
+      <div class="token-icon p0">🔴</div>
+      <div class="token-info">
+        <div class="label">P0 任務 Token</div>
+        <div class="value p0">412,500</div>
+        <div class="sub">3 個任務運行中</div>
+      </div>
+    </div>
+    
+    <div class="token-item">
+      <div class="token-icon p1">🟡</div>
+      <div class="token-info">
+        <div class="label">P1 任務 Token</div>
+        <div class="value p1">287,200</div>
+        <div class="sub">5 個任務運行中</div>
+      </div>
+    </div>
+    
+    <div class="token-item">
+      <div class="token-icon p2">⚪</div>
+      <div class="token-info">
+        <div class="label">P2 任務 Token</div>
+        <div class="value p2">147,620</div>
+        <div class="sub">2 個任務可暫停</div>
+      </div>
+    </div>
+    
+    <div class="token-divider"></div>
+    
+    <div class="threshold-warning">
+      <span class="icon">⚠️</span>
+      <span class="text">剩餘 Token 15.3%，建議暫停 P2 任務以保障 P0/P1</span>
+      <button class="action">一鍵優化</button>
+    </div>
+  </div>
+  
+  <!-- Task List -->
+  <div class="task-section">
+    <div class="task-section-header">
+      <div class="task-section-title">
+        <span>📋</span>
+        任務列表
+        <span class="task-count">10 個任務</span>
+      </div>
+      <div class="sort-controls">
+        <button class="sort-btn active">優先級</button>
+        <button class="sort-btn">Token 消耗</button>
+        <button class="sort-btn">名稱</button>
+      </div>
+    </div>
+    
+    <div class="task-list">
+      <!-- P0 Tasks -->
+      <div class="task-item">
+        <div class="priority-badge p0">P0</div>
+        <div class="task-info">
+          <div class="task-title">P0: 常駐環境離線緊急修復</div>
+          <div class="task-meta">
+            <span class="agent">🚀 部署艦</span> · 正在消耗 12,500/h
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">87,500</div>
+          <div class="sub">7h 消耗</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn" title="暫停">⏸️</button>
+        </div>
+      </div>
+      
+      <div class="task-item">
+        <div class="priority-badge p0">P0</div>
+        <div class="task-info">
+          <div class="task-title">DoD 合規率統計儀表板</div>
+          <div class="task-meta">
+            <span class="agent">⚙️ 編譯器</span> · 正在消耗 18,200/h
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">163,800</div>
+          <div class="sub">9h 消耗</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn" title="暫停">⏸️</button>
+        </div>
+      </div>
+      
+      <div class="task-item">
+        <div class="priority-badge p0">P0</div>
+        <div class="task-info">
+          <div class="task-title">負面反饋聯動實作</div>
+          <div class="task-meta">
+            <span class="agent">⚙️ 編譯器</span> · 正在消耗 16,800/h
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">117,600</div>
+          <div class="sub">7h 消耗</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn" title="暫停">⏸️</button>
+        </div>
+      </div>
+      
+      <!-- P1 Tasks -->
+      <div class="task-item">
+        <div class="priority-badge p1">P1</div>
+        <div class="task-info">
+          <div class="task-title">誠信評分系統實作</div>
+          <div class="task-meta">
+            <span class="agent">⚙️ 編譯器</span> · 正在消耗 14,600/h
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">102,200</div>
+          <div class="sub">7h 消耗</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn" title="暫停">⏸️</button>
+        </div>
+      </div>
+      
+      <div class="task-item">
+        <div class="priority-badge p1">P1</div>
+        <div class="task-info">
+          <div class="task-title">依賴拓撲圖功能</div>
+          <div class="task-meta">
+            <span class="agent">🎨 調色盤</span> · 正在消耗 21,500/h
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">150,500</div>
+          <div class="sub">7h 消耗</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn" title="暫停">⏸️</button>
+        </div>
+      </div>
+      
+      <!-- P2 Tasks (Paused) -->
+      <div class="task-item paused">
+        <div class="priority-badge p2">P2</div>
+        <div class="task-info">
+          <div class="task-title">自動調頻建議引擎 UI</div>
+          <div class="task-meta">
+            <span class="agent">🎨 調色盤</span> · 已暫停
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">45,320</div>
+          <div class="sub">已暫停</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn resume" title="恢復">▶️</button>
+        </div>
+      </div>
+      
+      <div class="task-item paused">
+        <div class="priority-badge p2">P2</div>
+        <div class="task-info">
+          <div class="task-title">UI 文件整理與優化</div>
+          <div class="task-meta">
+            <span class="agent">🎨 調色盤</span> · 已暫停
+          </div>
+        </div>
+        <div class="task-token">
+          <div class="value">32,100</div>
+          <div class="sub">已暫停</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-action-btn" title="查看詳情">🔍</button>
+          <button class="task-action-btn resume" title="恢復">▶️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Suggestion Card -->
+  <div class="suggestion-card">
+    <div class="suggestion-header">
+      <div class="suggestion-icon">💡</div>
+      <div>
+        <div class="suggestion-title">Token 分配優化建議</div>
+        <div class="suggestion-subtitle">基於當前消耗速率與剩餘額度，系統建議：</div>
+      </div>
+    </div>
+    <div class="suggestion-content">
+      <div class="suggestion-item">
+        <div class="step-number">1</div>
+        <div class="step-text">
+          暫停 <strong>P2 任務「自動調頻建議引擎 UI」</strong>，預計節省 <strong>21,500 Token/h</strong>
+        </div>
+        <button class="step-action">一鍵暫停</button>
+      </div>
+      <div class="suggestion-item">
+        <div class="step-number">2</div>
+        <div class="step-text">
+          將省下額度優先分配給 <strong>P0 任務「DoD 合規率統計儀表板」</strong>
+        </div>
+        <button class="step-done">已完成</button>
+      </div>
+      <div class="suggestion-item">
+        <div class="step-number">3</div>
+        <div class="step-text">
+          監控 P0 任務完成後，逐步恢復 <strong>P2 任務</strong>
+        </div>
+        <button class="step-action">設定提醒</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Grid: Allocation + Stats -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📊</span>
+          Token 分配比例
+        </div>
+      </div>
+      <div class="allocation-list">
+        <div class="allocation-item">
+          <div class="allocation-priority p0">P0</div>
+          <div class="allocation-bar-container">
+            <div class="allocation-bar-header">
+              <span class="allocation-bar-label">優先級 P0（關鍵任務）</span>
+              <span class="allocation-bar-value">412,500 (55%)</span>
+            </div>
+            <div class="allocation-bar">
+              <div class="allocation-bar-fill p0" style="width: 55%;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="allocation-item">
+          <div class="allocation-priority p1">P1</div>
+          <div class="allocation-bar-container">
+            <div class="allocation-bar-header">
+              <span class="allocation-bar-label">優先級 P1（重要任務）</span>
+              <span class="allocation-bar-value">287,200 (38%)</span>
+            </div>
+            <div class="allocation-bar">
+              <div class="allocation-bar-fill p1" style="width: 38%;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="allocation-item">
+          <div class="allocation-priority p2">P2</div>
+          <div class="allocation-bar-container">
+            <div class="allocation-bar-header">
+              <span class="allocation-bar-label">優先級 P2（可延後）</span>
+              <span class="allocation-bar-value">147,620 (7%)</span>
+            </div>
+            <div class="allocation-bar">
+              <div class="allocation-bar-fill p2" style="width: 7%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⚡</span>
+          快速操作
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <button style="background: var(--priority-p1); border: none; border-radius: 8px; padding: 12px 16px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ⏸️ 暫停所有 P2 任務
+        </button>
+        <button style="background: var(--bg-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ▶️ 恢復所有已暫停任務
+        </button>
+        <button style="background: var(--bg-light); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          🔄 重置 Token 分配
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Design Spec Footer -->
+  <footer class="design-footer">
+    <div class="design-spec">
+      <span>Colors:</span> #EF4444 (P0) · #F59E0B (P1) · #6B7280 (P2) · #10B981 (active/resume) · #0066FF (primary)
+    </div>
+    <div class="design-spec">
+      <span>Font:</span> Inter · <span>Spacing:</span> 8px grid · <span>Radius:</span> 8-12px
+    </div>
+  </footer>
+</body>
+</html>
